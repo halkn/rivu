@@ -58,7 +58,16 @@ The first version should establish one complete workflow:
 1. Preview source code and Markdown
 1. Hand detailed diffs off to Hunk
 
-Implementation technology is intentionally undecided.
+## Development
 
-Rust + Ratatui and OpenTUI + TypeScript + Bun will be compared before committing to the initial implementation stack.
+`rivu` is built with OpenTUI + TypeScript + Bun ([ADR 0001](docs/adr/0001-tech-stack.md)).
+
+```sh
+mise install
+bun install
+bun run start .
+bun test
+bun run typecheck
+bun run build
+```
 
