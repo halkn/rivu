@@ -2,13 +2,16 @@
   "name": "rivu",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "bin": {
     "rivu": "src/main.tsx"
   },
+  "type": "module",
   "scripts": {
     "start": "bun src/main.tsx",
     "typecheck": "bun node_modules/typescript/bin/tsc --noEmit -p .",
+    "lint": "bun node_modules/oxlint/bin/oxlint --deny-warnings",
+    "fmt": "bun node_modules/oxfmt/bin/oxfmt",
+    "fmt:check": "bun node_modules/oxfmt/bin/oxfmt --check",
     "build": "bun build --compile src/main.tsx --outfile dist/rivu"
   },
   "dependencies": {
@@ -19,6 +22,8 @@
   "devDependencies": {
     "@types/bun": "1.4.2",
     "@types/react": "19.3.0",
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0",
     "typescript": "7.0.2"
   }
 }

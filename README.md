@@ -67,7 +67,8 @@ mise install
 bun install
 bun run start .
 bun test
+bun run lint
+bun run fmt
 bun run typecheck
 bun run build
 ```
-
