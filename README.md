@@ -63,7 +63,6 @@ The first version should establish one complete workflow:
 `rivu` is built with OpenTUI + TypeScript + Bun ([ADR 0001](docs/adr/0001-tech-stack.md)).
 
 ```sh
-mise install
 bun install
 bun run start .
 bun test
