@@ -1,22 +1,10 @@
 #!/usr/bin/env bun
 import { createCliRenderer, getDataPaths } from "@opentui/core";
-import { createRoot, useKeyboard, useRenderer } from "@opentui/react";
+import { createRoot } from "@opentui/react";
 import pkg from "../package.json";
 import { UsageError, parseCommand, usage } from "./cli";
-import { RepositoryError, resolveRepository, type Repository } from "./repository";
-
-function App({ repository }: { repository: Repository }) {
-  const renderer = useRenderer();
-  useKeyboard((key) => {
-    if (key.name === "q") renderer.destroy();
-  });
-  return (
-    <box flexDirection="column" padding={1}>
-      <text>{repository.root}</text>
-      <text fg="#697098">q: quit</text>
-    </box>
-  );
-}
+import { RepositoryError, resolveRepository } from "./repository";
+import { App } from "./ui/App";
 
 async function main(argv: string[]): Promise<number> {
   let command;

@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
-import { GitError, runGit } from "./git";
+import { GitError, runGit } from "./git/run";
 
 export type Repository = {
   /** Top-level directory of the checkout that PATH belongs to. */
