@@ -18,3 +18,4 @@ bun test
 
 - Git の parser は porcelain 出力の fixture で、Git 呼び出しは一時 repository を作る統合テストで検証する
 - 画面は `testRender` で文字列として検証する。日本語を含むレイアウトはテスト用 renderer で正しく折り返されないため、実端末で確認する
+- 実端末での確認には `scripts/playground/` で状態を揃えた repository を使う。`local.sh` はネットワーク不要、`github.sh` は GitHub に branch と PR を作る（実行前にユーザーの確認を取る）。shell script は `shuck check` で検査する
