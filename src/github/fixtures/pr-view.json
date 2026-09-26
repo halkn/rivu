@@ -1,0 +1,66 @@
+{
+  "isDraft": false,
+  "mergeStateStatus": "BLOCKED",
+  "mergeable": "MERGEABLE",
+  "number": 14519,
+  "reviewDecision": "CHANGES_REQUESTED",
+  "state": "OPEN",
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-26T06:51:53Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/cli/cli/actions/runs/36225027797/job/108357271590",
+      "name": "label-external",
+      "startedAt": "2026-09-26T06:51:53Z",
+      "status": "COMPLETED",
+      "workflowName": "PR Triaging"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-26T06:48:50Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/cli/cli/actions/runs/36224759479/job/108356509446",
+      "name": "lint",
+      "startedAt": "2026-09-26T06:46:28Z",
+      "status": "COMPLETED",
+      "workflowName": "Lint"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-26T06:51:43Z",
+      "conclusion": "FAILURE",
+      "detailsUrl": "https://github.com/cli/cli/actions/runs/36224759502/job/108356509645",
+      "name": "build (ubuntu-latest)",
+      "startedAt": "2026-09-26T06:46:28Z",
+      "status": "COMPLETED",
+      "workflowName": "Unit and Integration Tests"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "0001-01-01T00:00:00Z",
+      "conclusion": "",
+      "detailsUrl": "https://github.com/cli/cli/actions/runs/36224759502/job/108356509661",
+      "name": "build (windows-latest)",
+      "startedAt": "2026-09-26T06:46:43Z",
+      "status": "IN_PROGRESS",
+      "workflowName": "Unit and Integration Tests"
+    },
+    {
+      "__typename": "StatusContext",
+      "context": "EasyCLA",
+      "startedAt": "2026-09-26T11:28:44Z",
+      "state": "SUCCESS",
+      "targetUrl": "https://example.com/cla"
+    },
+    {
+      "__typename": "StatusContext",
+      "context": "tide",
+      "startedAt": "2026-09-26T11:29:23Z",
+      "state": "PENDING",
+      "targetUrl": "https://example.com/tide"
+    }
+  ],
+  "title": "Document search operator support in `gh search` help",
+  "url": "https://github.com/cli/cli/pull/14519"
+}
