@@ -59,4 +59,5 @@ export type PrState =
 export type Work = {
   checkout: Checkout;
   local: Loadable<LocalState>;
+  pr: PrState;
 };

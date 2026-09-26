@@ -1,4 +1,4 @@
-import type { Checkout, Loadable, LocalState, Work } from "../work";
+import type { Checkout, Loadable, LocalState, PrState, Work } from "../work";
 
 export type State = {
   works: Loadable<Work[]>;
@@ -10,6 +10,7 @@ export type Action =
   | { type: "checkoutsLoaded"; checkouts: Checkout[] }
   | { type: "checkoutsFailed"; message: string }
   | { type: "localLoaded"; path: string; local: Loadable<LocalState> }
+  | { type: "prLoaded"; path: string; pr: PrState }
   | { type: "move"; delta: number };
 
 export const initialState: State = { works: { status: "loading" }, selectedPath: null };
@@ -17,9 +18,10 @@ export const initialState: State = { works: { status: "loading" }, selectedPath:
 export function reduce(state: State, action: Action): State {
   switch (action.type) {
     case "checkoutsLoaded": {
-      const works = action.checkouts.map((checkout) => ({
+      const works: Work[] = action.checkouts.map((checkout) => ({
         checkout,
-        local: { status: "loading" } as const,
+        local: { status: "loading" },
+        pr: { status: "loading" },
       }));
       const kept = works.some((work) => work.checkout.path === state.selectedPath);
       return {
@@ -29,13 +31,10 @@ export function reduce(state: State, action: Action): State {
     }
     case "checkoutsFailed":
       return { works: { status: "error", message: action.message }, selectedPath: null };
-    case "localLoaded": {
-      if (state.works.status !== "loaded") return state;
-      const works = state.works.value.map((work) =>
-        work.checkout.path === action.path ? { ...work, local: action.local } : work,
-      );
-      return { ...state, works: { status: "loaded", value: works } };
-    }
+    case "localLoaded":
+      return updateWork(state, action.path, (work) => ({ ...work, local: action.local }));
+    case "prLoaded":
+      return updateWork(state, action.path, (work) => ({ ...work, pr: action.pr }));
     case "move": {
       if (state.works.status !== "loaded" || state.works.value.length === 0) return state;
       const works = state.works.value;
@@ -47,6 +46,14 @@ export function reduce(state: State, action: Action): State {
       return { ...state, selectedPath: works[next]!.checkout.path };
     }
   }
+}
+
+function updateWork(state: State, path: string, update: (work: Work) => Work): State {
+  if (state.works.status !== "loaded") return state;
+  const works = state.works.value.map((work) =>
+    work.checkout.path === path ? update(work) : work,
+  );
+  return { ...state, works: { status: "loaded", value: works } };
 }
 
 export function selectedWork(state: State): Work | undefined {

@@ -1,10 +1,29 @@
-import type { Work } from "../work";
-import { headLabel, relativeTime, workSummary } from "./format";
+import type { PullRequest, Work } from "../work";
+import {
+  headLabel,
+  localSegments,
+  prSegments,
+  relativeTime,
+  type Segment,
+  workSummary,
+} from "./format";
 import { sanitize } from "./sanitize";
 import { selectedWork, type State } from "./state";
+import { colors, toneColors } from "./theme";
 
-const DIM = "#697098";
-const SELECTED_BG = "#2f3449";
+function Segments({ segments, indent = "" }: { segments: Segment[]; indent?: string }) {
+  return (
+    <text>
+      {indent}
+      {segments.map((segment, index) => (
+        <span key={index}>
+          {index > 0 ? <span fg={colors.muted}>{" · "}</span> : null}
+          <span fg={toneColors[segment.tone]}>{segment.text}</span>
+        </span>
+      ))}
+    </text>
+  );
+}
 
 function WorkList({ works, selectedPath }: { works: Work[]; selectedPath: string | null }) {
   return (
@@ -16,13 +35,15 @@ function WorkList({ works, selectedPath }: { works: Work[]; selectedPath: string
             key={work.checkout.path}
             flexDirection="column"
             paddingLeft={1}
-            backgroundColor={selected ? SELECTED_BG : undefined}
+            marginBottom={1}
+            backgroundColor={selected ? colors.selectedBackground : undefined}
           >
             <text>
               <strong>{headLabel(work.checkout)}</strong>
-              {work.checkout.isMain ? <span fg={DIM}> (main checkout)</span> : null}
+              {work.checkout.isMain ? <span fg={colors.muted}>{" (main checkout)"}</span> : null}
             </text>
-            <text fg={DIM}>{`  ${workSummary(work)}`}</text>
+            <Segments segments={localSegments(work)} indent="  " />
+            <Segments segments={prSegments(work.pr)} indent="  " />
           </box>
         );
       })}
@@ -30,12 +51,42 @@ function WorkList({ works, selectedPath }: { works: Work[]; selectedPath: string
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, children }: { label: string; children: string }) {
   return (
     <text>
-      <span fg={DIM}>{label.padEnd(10)}</span>
-      {value}
+      <span fg={colors.muted}>{label.padEnd(10)}</span>
+      {children}
     </text>
+  );
+}
+
+function checksText(checks: PullRequest["checks"]): string {
+  if (checks.passed + checks.failed + checks.pending === 0) return "no checks";
+  return `${checks.passed} passed · ${checks.failed} failed · ${checks.pending} pending`;
+}
+
+function mergeText(pr: PullRequest): string {
+  if (pr.state !== "OPEN") return pr.state === "MERGED" ? "merged" : "closed";
+  if (pr.mergeable === "CONFLICTING") return "conflicts with the base branch";
+  return pr.mergeStateStatus.toLowerCase().replace("_", " ");
+}
+
+function PullRequestSection({ work }: { work: Work }) {
+  if (work.pr.status !== "found") return <Segments segments={prSegments(work.pr)} />;
+  const pr = work.pr.value;
+  return (
+    <>
+      <text>
+        <strong>{`#${pr.number} ${sanitize(pr.title)}`}</strong>
+      </text>
+      <text fg={colors.muted}>{sanitize(pr.url)}</text>
+      <Segments segments={prSegments(work.pr)} />
+      <Field label="Checks">{checksText(pr.checks)}</Field>
+      <Field label="Review">
+        {pr.reviewDecision ? pr.reviewDecision.toLowerCase().replace("_", " ") : "not required"}
+      </Field>
+      <Field label="Merge">{mergeText(pr)}</Field>
+    </>
   );
 }
 
@@ -53,44 +104,39 @@ function Overview({ work }: { work: Work }) {
       <text>
         <strong>{headLabel(checkout)}</strong>
       </text>
-      <text fg={DIM}>{sanitize(checkout.path)}</text>
+      <text fg={colors.muted}>{sanitize(checkout.path)}</text>
       <text> </text>
-      {flags ? <Field label="Checkout" value={flags} /> : null}
+      {flags ? <Field label="Checkout">{flags}</Field> : null}
       {local.status === "loaded" ? (
         <>
-          <Field
-            label="Upstream"
-            value={
-              local.value.upstream === null
-                ? "not pushed"
-                : `${sanitize(local.value.upstream)}${
-                    local.value.aheadBehind
-                      ? ` (↑${local.value.aheadBehind.ahead} ↓${local.value.aheadBehind.behind})`
-                      : ""
-                  }`
-            }
-          />
-          <Field
-            label="Changes"
-            value={[
+          <Field label="Upstream">
+            {local.value.upstream === null
+              ? "not pushed"
+              : `${sanitize(local.value.upstream)}${
+                  local.value.aheadBehind
+                    ? ` (↑${local.value.aheadBehind.ahead} ↓${local.value.aheadBehind.behind})`
+                    : ""
+                }`}
+          </Field>
+          <Field label="Changes">
+            {[
               `${local.value.staged.length} staged`,
               `${local.value.unstaged.length} unstaged`,
               `${local.value.untracked.length} untracked`,
               `${local.value.conflicted.length} conflicted`,
             ].join(" · ")}
-          />
-          <Field
-            label="Commit"
-            value={
-              local.value.latestCommit
-                ? `${local.value.latestCommit.oid.slice(0, 7)} ${sanitize(local.value.latestCommit.subject)} (${relativeTime(local.value.latestCommit.committedAt)})`
-                : "no commits yet"
-            }
-          />
+          </Field>
+          <Field label="Commit">
+            {local.value.latestCommit
+              ? `${local.value.latestCommit.oid.slice(0, 7)} ${sanitize(local.value.latestCommit.subject)} (${relativeTime(local.value.latestCommit.committedAt)})`
+              : "no commits yet"}
+          </Field>
         </>
       ) : (
-        <text fg={DIM}>{workSummary(work)}</text>
+        <text fg={colors.muted}>{workSummary(work)}</text>
       )}
+      <text> </text>
+      <PullRequestSection work={work} />
     </box>
   );
 }
@@ -101,9 +147,9 @@ export function WorkView({ state }: { state: State }) {
     <box flexDirection="column" width="100%" height="100%">
       <box flexDirection="row" flexGrow={1}>
         <box title="Works" border width="40%">
-          {state.works.status === "loading" ? <text fg={DIM}>loading…</text> : null}
+          {state.works.status === "loading" ? <text fg={colors.muted}>loading…</text> : null}
           {state.works.status === "error" ? (
-            <text fg="#f07178">{sanitize(state.works.message)}</text>
+            <text fg={toneColors.danger}>{sanitize(state.works.message)}</text>
           ) : null}
           {state.works.status === "loaded" ? (
             <WorkList works={state.works.value} selectedPath={state.selectedPath} />
@@ -113,7 +159,7 @@ export function WorkView({ state }: { state: State }) {
           {selected ? <Overview work={selected} /> : null}
         </box>
       </box>
-      <text fg={DIM}>j/k: select r: reload q: quit</text>
+      <text fg={colors.muted}>{"j/k: select  r: reload  q: quit"}</text>
     </box>
   );
 }

@@ -1,6 +1,7 @@
 import { useKeyboard, useRenderer } from "@opentui/react";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { listCheckouts, loadLocalState } from "../git/local";
+import { fetchPull, listPulls, resolvePr } from "../github/resolve";
 import type { Repository } from "../repository";
 import { initialState, reduce } from "./state";
 import { WorkView } from "./WorkView";
@@ -27,16 +28,27 @@ export function App({ repository }: { repository: Repository }) {
     }
     if (!isCurrent()) return;
     dispatch({ type: "checkoutsLoaded", checkouts });
+
+    const pulls = listPulls(repository.root);
+    // Each work awaits this; the catch only keeps a failure from being reported as unhandled.
+    pulls.catch(() => undefined);
+    const fetchDetail = (number: number) => fetchPull(repository.root, number);
+
     await Promise.all(
-      checkouts
-        .filter((checkout) => !checkout.prunable)
-        .map(async (checkout) => {
+      checkouts.map(async (checkout) => {
+        let upstream: string | null = null;
+        if (!checkout.prunable) {
           const local = await loadLocalState(checkout).then(
             (value) => ({ status: "loaded", value }) as const,
             (error: unknown) => ({ status: "error", message: message(error) }) as const,
           );
-          if (isCurrent()) dispatch({ type: "localLoaded", path: checkout.path, local });
-        }),
+          if (!isCurrent()) return;
+          dispatch({ type: "localLoaded", path: checkout.path, local });
+          if (local.status === "loaded") upstream = local.value.upstream;
+        }
+        const pr = await resolvePr(checkout, upstream, pulls, fetchDetail);
+        if (isCurrent()) dispatch({ type: "prLoaded", path: checkout.path, pr });
+      }),
     );
   }, [repository.root]);
 

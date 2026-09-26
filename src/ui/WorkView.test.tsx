@@ -1,8 +1,10 @@
 import { afterEach, expect, test } from "bun:test";
+import { RGBA } from "@opentui/core";
 import type { TestRendererSetup } from "@opentui/core/testing";
 import { testRender } from "@opentui/react/test-utils";
 import type { Checkout } from "../work";
 import { initialState, reduce } from "./state";
+import { toneColors } from "./theme";
 import { WorkView } from "./WorkView";
 
 let setup: TestRendererSetup | undefined;
@@ -47,9 +49,28 @@ test("lists works with their summary and shows the selected overview", async () 
       },
     },
   });
+  state = reduce(state, {
+    type: "prLoaded",
+    path: "/repo-wt/feat",
+    pr: {
+      status: "found",
+      value: {
+        number: 84,
+        title: "Add parser",
+        url: "https://github.com/o/r/pull/84",
+        state: "OPEN",
+        isDraft: false,
+        reviewDecision: "APPROVED",
+        checks: { passed: 2, failed: 1, pending: 0 },
+        mergeable: "MERGEABLE",
+        mergeStateStatus: "BLOCKED",
+      },
+    },
+  });
+  state = reduce(state, { type: "prLoaded", path: "/repo", pr: { status: "none" } });
   state = reduce(state, { type: "move", delta: 1 });
 
-  setup = await testRender(<WorkView state={state} />, { width: 120, height: 20 });
+  setup = await testRender(<WorkView state={state} />, { width: 120, height: 30 });
   await setup.renderOnce();
   const frame = setup.captureCharFrame();
 
@@ -59,4 +80,15 @@ test("lists works with their summary and shows the selected overview", async () 
   expect(frame).toContain("/repo-wt/feat");
   expect(frame).toContain("1 staged · 0 unstaged · 1 untracked · 0 conflicted");
   expect(frame).toContain("abcdef0 add parser[2J");
+  expect(frame).toContain("no PR");
+  expect(frame).toContain("PR #84 · Checks failed · Approved");
+  expect(frame).toContain("#84 Add parser");
+  expect(frame).toContain("2 passed · 1 failed · 0 pending");
+  expect(frame).toContain("j/k: select  r: reload  q: quit");
+
+  const failed = setup
+    .captureSpans()
+    .lines.flatMap((line) => line.spans)
+    .find((span) => span.text.includes("Checks failed"));
+  expect(failed?.fg.equals(RGBA.fromHex(toneColors.danger))).toBe(true);
 });
