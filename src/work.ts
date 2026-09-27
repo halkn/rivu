@@ -47,7 +47,11 @@ export type PullRequest = {
   checks: { passed: number; failed: number; pending: number };
   mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
   mergeStateStatus: "CLEAN" | "BEHIND" | "BLOCKED" | "DIRTY" | "UNSTABLE" | "HAS_HOOKS" | "UNKNOWN";
+  updatedAt: Date;
+  latestReviews: { author: string; state: ReviewState }[];
 };
+
+export type ReviewState = "PENDING" | "COMMENTED" | "APPROVED" | "CHANGES_REQUESTED" | "DISMISSED";
 
 export type PrState =
   | { status: "loading" }

@@ -64,6 +64,11 @@ test("lists works with their summary and shows the selected overview", async () 
         checks: { passed: 2, failed: 1, pending: 0 },
         mergeable: "MERGEABLE",
         mergeStateStatus: "BLOCKED",
+        updatedAt: new Date(Date.now() - 3 * 3600 * 1000),
+        latestReviews: [
+          { author: "alice", state: "APPROVED" },
+          { author: "bob", state: "CHANGES_REQUESTED" },
+        ],
       },
     },
   });
@@ -85,6 +90,8 @@ test("lists works with their summary and shows the selected overview", async () 
   expect(frame).toContain("     ✗ CI 1/3 failed · ✓ Approved · Blocked");
   expect(frame).toContain("#84 Add parser");
   expect(frame).toContain("2 passed · 1 failed · 0 pending");
+  expect(frame).toContain("Updated   3 hours ago");
+  expect(frame).toContain("Reviews   alice approved · bob requested changes");
   expect(frame).toContain("j/k: select  r: reload  q: quit");
 
   const failed = setup

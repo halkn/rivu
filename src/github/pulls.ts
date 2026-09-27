@@ -20,6 +20,13 @@ function string(value: unknown, field: string): string {
   throw new PullParseError(`unexpected ${field}: ${JSON.stringify(value)}`);
 }
 
+function date(value: unknown, field: string): Date {
+  const parsed = new Date(string(value, field));
+  if (Number.isNaN(parsed.getTime()))
+    throw new PullParseError(`unexpected ${field}: ${String(value)}`);
+  return parsed;
+}
+
 function number(value: unknown, field: string): number {
   if (typeof value === "number") return value;
   throw new PullParseError(`unexpected ${field}: ${JSON.stringify(value)}`);
@@ -101,5 +108,23 @@ export function parsePullDetail(json: string): PullRequest {
       ["CLEAN", "BEHIND", "BLOCKED", "DIRTY", "UNSTABLE", "HAS_HOOKS", "UNKNOWN"] as const,
       "mergeStateStatus",
     ),
+    updatedAt: date(pr.updatedAt, "updatedAt"),
+    latestReviews: parseReviews(pr.latestReviews),
   };
+}
+
+const REVIEW_STATES = [
+  "PENDING",
+  "COMMENTED",
+  "APPROVED",
+  "CHANGES_REQUESTED",
+  "DISMISSED",
+] as const;
+
+function parseReviews(reviews: unknown): PullRequest["latestReviews"] {
+  if (!Array.isArray(reviews)) return [];
+  return reviews.map((review: Record<string, unknown>) => ({
+    author: string((review.author as Record<string, unknown> | undefined)?.login, "review author"),
+    state: oneOf(review.state, REVIEW_STATES, "review state"),
+  }));
 }

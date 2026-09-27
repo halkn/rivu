@@ -17,6 +17,11 @@ describe("parsePullDetail", () => {
       checks: { passed: 2, failed: 1, pending: 2 },
       mergeable: "MERGEABLE",
       mergeStateStatus: "BLOCKED",
+      updatedAt: new Date("2026-09-26T06:51:47Z"),
+      latestReviews: [
+        { author: "BagToad", state: "COMMENTED" },
+        { author: "copilot-pull-request-reviewer", state: "COMMENTED" },
+      ],
     });
   });
 

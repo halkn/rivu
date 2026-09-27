@@ -7,6 +7,7 @@ import {
   prHeadline,
   prStatus,
   relativeTime,
+  reviewsText,
   workSummary,
 } from "./format";
 
@@ -136,6 +137,8 @@ describe("pull request lines", () => {
     checks: { passed: 3, failed: 0, pending: 0 },
     mergeable: "MERGEABLE",
     mergeStateStatus: "CLEAN",
+    updatedAt: new Date("2026-09-26T09:00:00Z"),
+    latestReviews: [],
   };
 
   test("headline shows the number, title and a draft or closed marker", () => {
@@ -204,6 +207,20 @@ describe("pull request lines", () => {
     );
     expect(text(prHeadline({ status: "error", message: "HTTP 502" }))).toBe("PR error: HTTP 502");
     expect(prStatus({ status: "none" })).toEqual([]);
+  });
+});
+
+describe("reviewsText", () => {
+  test("lists each reviewer's latest state", () => {
+    expect(
+      reviewsText([
+        { author: "alice", state: "APPROVED" },
+        { author: "bob", state: "CHANGES_REQUESTED" },
+        { author: "carol", state: "COMMENTED" },
+        { author: "dave", state: "DISMISSED" },
+      ]),
+    ).toBe("alice approved · bob requested changes · carol commented · dave dismissed");
+    expect(reviewsText([])).toBe("no reviews");
   });
 });
 

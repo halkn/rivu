@@ -1,4 +1,4 @@
-import type { Checkout, LocalState, PrState, PullRequest, Work } from "../work";
+import type { Checkout, LocalState, PrState, PullRequest, ReviewState, Work } from "../work";
 import { sanitize } from "./sanitize";
 
 export function headLabel(checkout: Checkout): string {
@@ -119,6 +119,21 @@ export function prStatus(pr: PrState): Segment[] {
     pr.value.reviewDecision ? REVIEW[pr.value.reviewDecision] : undefined,
     mergeSegment(pr.value),
   ].filter((segment) => segment !== undefined);
+}
+
+const REVIEW_VERBS: Record<ReviewState, string> = {
+  APPROVED: "approved",
+  CHANGES_REQUESTED: "requested changes",
+  COMMENTED: "commented",
+  DISMISSED: "dismissed",
+  PENDING: "pending",
+};
+
+export function reviewsText(reviews: PullRequest["latestReviews"]): string {
+  if (reviews.length === 0) return "no reviews";
+  return reviews
+    .map((review) => `${sanitize(review.author)} ${REVIEW_VERBS[review.state]}`)
+    .join(" · ");
 }
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [

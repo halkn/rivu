@@ -61,6 +61,11 @@ type PullRequest = {
   checks: { passed: number; failed: number; pending: number };
   mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
   mergeStateStatus: "CLEAN" | "BEHIND" | "BLOCKED" | "DIRTY" | "UNSTABLE" | "HAS_HOOKS" | "UNKNOWN";
+  updatedAt: Date;
+  latestReviews: {
+    author: string;
+    state: "PENDING" | "COMMENTED" | "APPROVED" | "CHANGES_REQUESTED" | "DISMISSED";
+  }[];
 };
 ```
 
@@ -68,19 +73,20 @@ type PullRequest = {
 - **複数の PR が一致する**: fork からの PR（`isCrossRepository`）は除き、OPEN を優先し、無ければ最も新しいものを採る。merge 済みの PR も表示するのは、その worktree を片付けてよいかの判断に使えるため
 - **一覧は新しい順に 100 件まで**: それより古い PR しか無い branch は「PR 無し」として扱う
 - **CI の集計**: CheckRun は完了前を pending、`FAILURE` / `TIMED_OUT` / `CANCELLED` / `ACTION_REQUIRED` / `STARTUP_FAILURE` を failed、`SUCCESS` を passed とし、`NEUTRAL` / `SKIPPED` / `STALE` は数えない。StatusContext は `SUCCESS` を passed、`FAILURE` / `ERROR` を failed、`PENDING` / `EXPECTED` を pending とする
+- **議論の中身は取らない**: 最後に誰がどう動いたかは `latestReviews` と `updatedAt` だけで示す。コメント本文はコメントとレビューの合成や bot の除外（`latestReviews` の author には bot の印が無い）が要り、読むのは GitHub の役目なため
 - **gh が使えないときは PR だけを諦める**: gh が無い・未認証・GitHub 以外の remote でも、local の状態は表示する
 
 ## 外部コマンド
 
 Git 2.50.1 / gh 2.101.0 の出力形式で確認した。
 
-| 取得するもの                                 | コマンド                                                                                                                |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Checkout の一覧                              | `git worktree list --porcelain -z`                                                                                      |
-| branch・upstream・ahead/behind・変更ファイル | `git --no-optional-locks status --porcelain=v2 --branch -z`                                                             |
-| 最新のコミット                               | `git log -1 --format=%H%x00%s%x00%ct`                                                                                   |
-| PR の一覧                                    | `gh pr list --state all --limit 100 --json number,headRefName,isCrossRepository,state`                                  |
-| PR の詳細                                    | `gh pr view <number> --json number,title,url,state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus` |
+| 取得するもの                                 | コマンド                                                                                                                                        |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Checkout の一覧                              | `git worktree list --porcelain -z`                                                                                                              |
+| branch・upstream・ahead/behind・変更ファイル | `git --no-optional-locks status --porcelain=v2 --branch -z`                                                                                     |
+| 最新のコミット                               | `git log -1 --format=%H%x00%s%x00%ct`                                                                                                           |
+| PR の一覧                                    | `gh pr list --state all --limit 100 --json number,headRefName,isCrossRepository,state`                                                          |
+| PR の詳細                                    | `gh pr view <number> --json number,title,url,state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus,updatedAt,latestReviews` |
 
 - **`-z` を使う**: パスを quote されずにそのまま受け取るため。改行を含むパスでも行の区切りと混同しない
 - **`--no-optional-locks`**: `git status` は index を更新するために `index.lock` を取ることがある。rivu は読むだけのツールで、並行して動く Git 操作や Coding Agent と lock を奪い合わないようにするため

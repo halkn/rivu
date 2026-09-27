@@ -26,6 +26,8 @@ const pr: PullRequest = {
   checks: { passed: 1, failed: 0, pending: 0 },
   mergeable: "MERGEABLE",
   mergeStateStatus: "CLEAN",
+  updatedAt: new Date("2026-09-26T09:00:00Z"),
+  latestReviews: [],
 };
 
 describe("resolvePr", () => {

@@ -62,5 +62,38 @@
     }
   ],
   "title": "Document search operator support in `gh search` help",
-  "url": "https://github.com/cli/cli/pull/14519"
+  "url": "https://github.com/cli/cli/pull/14519",
+  "updatedAt": "2026-09-26T06:51:47Z",
+  "latestReviews": [
+    {
+      "author": {
+        "login": "BagToad"
+      },
+      "authorAssociation": "MEMBER",
+      "body": "Thanks, a few notes inline.",
+      "commit": {
+        "oid": ""
+      },
+      "id": "",
+      "includesCreatedEdit": false,
+      "reactionGroups": [],
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-25T21:58:31Z"
+    },
+    {
+      "author": {
+        "login": "copilot-pull-request-reviewer"
+      },
+      "authorAssociation": "CONTRIBUTOR",
+      "body": "",
+      "commit": {
+        "oid": ""
+      },
+      "id": "",
+      "includesCreatedEdit": false,
+      "reactionGroups": [],
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-25T16:40:56Z"
+    }
+  ]
 }

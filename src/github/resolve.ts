@@ -10,7 +10,7 @@ import {
 
 const LIST_FIELDS = "number,headRefName,isCrossRepository,state";
 const DETAIL_FIELDS =
-  "number,title,url,state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus";
+  "number,title,url,state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus,updatedAt,latestReviews";
 
 export async function listPulls(cwd: string): Promise<PullListItem[]> {
   const out = await runGh(cwd, [

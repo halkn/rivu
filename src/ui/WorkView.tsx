@@ -5,6 +5,7 @@ import {
   prHeadline,
   prStatus,
   relativeTime,
+  reviewsText,
   type Segment,
   workSummary,
 } from "./format";
@@ -97,6 +98,8 @@ function PullRequestSection({ work }: { work: Work }) {
         {pr.reviewDecision ? pr.reviewDecision.toLowerCase().replace("_", " ") : "not required"}
       </Field>
       <Field label="Merge">{mergeText(pr)}</Field>
+      <Field label="Reviews">{reviewsText(pr.latestReviews)}</Field>
+      <Field label="Updated">{relativeTime(pr.updatedAt)}</Field>
     </>
   );
 }
