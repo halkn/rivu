@@ -77,19 +77,47 @@ type PullRequest = {
 - **議論の中身は取らない**: 最後に誰がどう動いたかは `latestReviews` と `updatedAt` だけで示す。コメント本文はコメントとレビューの合成や bot の除外（`latestReviews` の author には bot の印が無い）が要り、読むのは GitHub の役目なため
 - **gh が使えないときは PR だけを諦める**: gh が無い・未認証・GitHub 以外の remote でも、local の状態は表示する
 
+### Files と Changes
+
+```ts
+type LineStat = { path: string; added: number | null; deleted: number | null }; // null は binary
+
+type Preview =
+  | { kind: "text"; content: string; truncated: boolean }
+  | { kind: "binary" }
+  | { kind: "symlink"; target: string }
+  | { kind: "missing" }; // index にはあるが作業ツリーから消えたファイル
+```
+
+- **Files は選んだ Work について、Files タブを開いたときに取る**: 大きい repository で全 Work のファイル一覧を毎回取らないため
+- **`.gitignore` の対象は出さない**: rivu が見せたいのは作業の対象で、`node_modules` のような生成物ではないため
+- **preview は先頭 512KB まで**: それ以上は切り詰めて印を出す。先頭 8KB に NUL を含むファイルは binary として中身を出さない
+- **symlink はたどらない**: リンク先だけを表示する。checkout の外を指すリンクで、関係の無いファイルを読まないため
+- **preview の中身も制御文字を除く**: 改行とタブ以外の制御文字を除く。ファイルの中身もコミットメッセージと同じく信頼できない入力のため
+- **Markdown は `<markdown>`、それ以外は `<code>` で出す**: filetype は拡張子から決め、Tree-sitter の文法が無い言語はハイライトなしで出す
+- **Changes の +/- は HEAD との差分**: staged と unstaged を合わせた、コミットするとしたら入る変更の規模を示すため。untracked のファイルは行数を数えず「新規」とだけ出し、合計にも含めない。まだコミットの無い branch は比較対象が無いので行数を出さない
+
+### Hunk への受け渡し
+
+- **`d` で選んだ Work の変更を、Changes タブで Enter を押すとそのファイルの変更を Hunk で開く**: `hunk diff HEAD`（ファイル指定時は `-- <path>`）を Work の checkout で実行する。まだコミットの無い branch では `hunk diff`
+- **TUI は一時停止して端末を Hunk に渡す**: `renderer.suspend()` → Hunk を stdin/stdout を引き継いで実行 → `renderer.resume()`。終わったら Git の状態を読み直す
+- **Hunk が無ければ、その旨を表示して続ける**
+
 ## 外部コマンド
 
 Git 2.50.1 / gh 2.101.0 の出力形式で確認した。
 
-| 取得するもの                                 | コマンド                                                                                                                                        |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Checkout の一覧                              | `git worktree list --porcelain -z`                                                                                                              |
-| branch・upstream・ahead/behind・変更ファイル | `git --no-optional-locks status --porcelain=v2 --branch -z`                                                                                     |
-| 最新のコミット                               | `git log -1 --format=%H%x00%s%x00%ct`                                                                                                           |
-| upstream の remote 側の branch 名            | `git for-each-ref --format=%(upstream:remotename)%00%(upstream:remoteref) refs/heads/<branch>`                                                  |
-| PR の一覧                                    | `gh pr list --state all --limit 100 --json number,headRefName,isCrossRepository,state`                                                          |
-| 既定 branch                                  | `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`                                                                              |
-| PR の詳細                                    | `gh pr view <number> --json number,title,url,state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus,updatedAt,latestReviews` |
+| 取得するもの                                 | コマンド                                                                                                                                             |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Checkout の一覧                              | `git worktree list --porcelain -z`                                                                                                                   |
+| branch・upstream・ahead/behind・変更ファイル | `git --no-optional-locks status --porcelain=v2 --branch -z`                                                                                          |
+| 最新のコミット                               | `git log -1 --format=%H%x00%s%x00%ct`                                                                                                                |
+| upstream の remote 側の branch 名            | `git for-each-ref --format=%(upstream:remotename)%00%(upstream:remoteref) refs/heads/<branch>`                                                       |
+| 追跡対象と untracked のファイル              | `git ls-files --cached --others --exclude-standard -z`                                                                                               |
+| 変更の行数                                   | `git diff --numstat -z HEAD`                                                                                                                         |
+| PR の一覧                                    | `gh pr list --state all --limit 100 --json number,headRefName,isCrossRepository,state`                                                               |
+| 既定 branch                                  | `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`                                                                                   |
+| PR の詳細                                    | `gh pr view <number> --json number,title,url,state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus,updatedAt,latestReviews,body` |
 
 - **`-z` を使う**: パスを quote されずにそのまま受け取るため。改行を含むパスでも行の区切りと混同しない
 - **`--no-optional-locks`**: `git status` は index を更新するために `index.lock` を取ることがある。rivu は読むだけのツールで、並行して動く Git 操作や Coding Agent と lock を奪い合わないようにするため
@@ -105,4 +133,10 @@ Git 2.50.1 / gh 2.101.0 の出力形式で確認した。
 - **一覧の PR は 2 行で出す**: 1 行目に番号とタイトル（draft / merged / closed の印）、2 行目に CI・review・merge の状態。何の PR がどの状態かを、一覧だけで読めるようにするため。merged / closed の PR は 2 行目を出さない
 - **色は状態の意味で決める**: success（clean・CI 成功・Approved・Mergeable）、warning（未コミットの変更・CI 実行中・Review required・Behind base・Blocked）、danger（conflict・CI 失敗・Changes requested）、accent（未 push・ahead/behind・PR のタイトル）、muted（読込中・PR 無し・draft / merged / closed の印）。一覧を流し見して、手を付けるべき Work が色で分かるようにするため
 - **再読込は `r` による手動のみ**: ファイル監視は v0.1 の範囲外
-- **キー**: `j` / `k`（`↓` / `↑`）で Work を選ぶ、`r` で再読込、`q` で終了
+- **右ペインは Overview / Files / Changes のタブ、フォーカスは Tab で左右を行き来する**: `j` / `k` はフォーカスのある側を動かす。どのペインにいてもタブと Hunk を 1 キーで呼べるようにするため
+- **キー**:
+  - どこでも: `Tab` フォーカス切替、`1` / `2` / `3` タブ切替、`d` Hunk で開く、`r` 再読込、`q` 終了
+  - Works: `j` / `k`（`↓` / `↑`）で Work を選ぶ
+  - Files: `j` / `k` で移動、`Enter` / `l` でディレクトリを開く、`h` で閉じる、`Ctrl-d` / `Ctrl-u` で preview をスクロール
+  - Changes: `j` / `k` で移動、`Enter` でそのファイルを Hunk で開く
+- **Overview に PR 本文を出す**: Markdown として描画し、Overview ごとスクロールする
