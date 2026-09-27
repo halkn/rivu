@@ -36,7 +36,7 @@ export function App({ repository }: { repository: Repository }) {
 
     await Promise.all(
       checkouts.map(async (checkout) => {
-        let upstream: string | null = null;
+        let upstreamBranch: string | null = null;
         if (!checkout.prunable) {
           const local = await loadLocalState(checkout).then(
             (value) => ({ status: "loaded", value }) as const,
@@ -44,9 +44,9 @@ export function App({ repository }: { repository: Repository }) {
           );
           if (!isCurrent()) return;
           dispatch({ type: "localLoaded", path: checkout.path, local });
-          if (local.status === "loaded") upstream = local.value.upstream;
+          if (local.status === "loaded") upstreamBranch = local.value.upstreamBranch;
         }
-        const pr = await resolvePr(checkout, upstream, pulls, fetchDetail);
+        const pr = await resolvePr(checkout, upstreamBranch, pulls, fetchDetail);
         if (isCurrent()) dispatch({ type: "prLoaded", path: checkout.path, pr });
       }),
     );

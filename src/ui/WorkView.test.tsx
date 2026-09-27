@@ -41,6 +41,7 @@ test("lists works with their summary and shows the selected overview", async () 
         unstaged: [],
         untracked: ["b.ts"],
         conflicted: [],
+        upstreamBranch: null,
         latestCommit: {
           oid: "abcdef0".padEnd(40, "0"),
           subject: "add parser\x1b[2J",

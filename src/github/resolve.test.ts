@@ -33,24 +33,59 @@ const pr: PullRequest = {
 describe("resolvePr", () => {
   test("fetches the detail of the matching PR", async () => {
     const fetched: number[] = [];
-    const state = await resolvePr(checkout, null, Promise.resolve(pulls), async (n) => {
-      fetched.push(n);
-      return pr;
-    });
+    const state = await resolvePr(
+      checkout,
+      null,
+      Promise.resolve({ pulls, defaultBranch: "main" }),
+      async (n) => {
+        fetched.push(n);
+        return pr;
+      },
+    );
     expect(state).toEqual({ status: "found", value: pr });
     expect(fetched).toEqual([7]);
   });
 
+  test("falls back to the remote branch the checkout tracks", async () => {
+    const renamed: Checkout = {
+      ...checkout,
+      head: { kind: "branch", name: "local", oid: "a".repeat(40) },
+    };
+    const state = await resolvePr(
+      renamed,
+      "feat/x",
+      Promise.resolve({ pulls, defaultBranch: "main" }),
+      async () => pr,
+    );
+    expect(state).toEqual({ status: "found", value: pr });
+  });
+
   test("no matching PR does not fetch any detail", async () => {
-    const state = await resolvePr(checkout, "origin/other", Promise.resolve(pulls), async () => {
-      throw new Error("must not be called");
-    });
+    const other: Checkout = {
+      ...checkout,
+      head: { kind: "branch", name: "feat/y", oid: "a".repeat(40) },
+    };
+    const state = await resolvePr(
+      other,
+      "main",
+      Promise.resolve({ pulls, defaultBranch: "main" }),
+      async () => {
+        throw new Error("must not be called");
+      },
+    );
     expect(state).toEqual({ status: "none" });
   });
 
   test("a detached checkout has no PR", async () => {
     const detached: Checkout = { ...checkout, head: { kind: "detached", oid: "a".repeat(40) } };
-    expect(await resolvePr(detached, null, Promise.resolve(pulls), async () => pr)).toEqual({
+    expect(
+      await resolvePr(
+        detached,
+        null,
+        Promise.resolve({ pulls, defaultBranch: "main" }),
+        async () => pr,
+      ),
+    ).toEqual({
       status: "none",
     });
   });
@@ -64,9 +99,14 @@ describe("resolvePr", () => {
   });
 
   test("a failed detail request is an error for this work only", async () => {
-    const state = await resolvePr(checkout, null, Promise.resolve(pulls), async () => {
-      throw new GhError("failed", "HTTP 502");
-    });
+    const state = await resolvePr(
+      checkout,
+      null,
+      Promise.resolve({ pulls, defaultBranch: "main" }),
+      async () => {
+        throw new GhError("failed", "HTTP 502");
+      },
+    );
     expect(state).toEqual({ status: "error", message: "HTTP 502" });
   });
 });

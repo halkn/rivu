@@ -28,6 +28,7 @@ const clean: LocalState = {
   unstaged: [],
   untracked: [],
   conflicted: [],
+  upstreamBranch: null,
   latestCommit: null,
 };
 
