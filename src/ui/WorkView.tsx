@@ -2,7 +2,8 @@ import type { PullRequest, Work } from "../work";
 import {
   headLabel,
   localSegments,
-  prSegments,
+  prHeadline,
+  prStatus,
   relativeTime,
   type Segment,
   workSummary,
@@ -11,13 +12,22 @@ import { sanitize } from "./sanitize";
 import { selectedWork, type State } from "./state";
 import { colors, toneColors } from "./theme";
 
-function Segments({ segments, indent = "" }: { segments: Segment[]; indent?: string }) {
+function Segments({
+  segments,
+  indent = "",
+  separator = " · ",
+}: {
+  segments: Segment[];
+  indent?: string;
+  separator?: string;
+}) {
+  if (segments.length === 0) return null;
   return (
     <text>
       {indent}
       {segments.map((segment, index) => (
         <span key={index}>
-          {index > 0 ? <span fg={colors.muted}>{" · "}</span> : null}
+          {index > 0 ? <span fg={colors.muted}>{separator}</span> : null}
           <span fg={toneColors[segment.tone]}>{segment.text}</span>
         </span>
       ))}
@@ -43,7 +53,8 @@ function WorkList({ works, selectedPath }: { works: Work[]; selectedPath: string
               {work.checkout.isMain ? <span fg={colors.muted}>{" (main checkout)"}</span> : null}
             </text>
             <Segments segments={localSegments(work)} indent="  " />
-            <Segments segments={prSegments(work.pr)} indent="  " />
+            <Segments segments={prHeadline(work.pr)} indent="  " separator=" " />
+            <Segments segments={prStatus(work.pr)} indent="     " />
           </box>
         );
       })}
@@ -72,7 +83,7 @@ function mergeText(pr: PullRequest): string {
 }
 
 function PullRequestSection({ work }: { work: Work }) {
-  if (work.pr.status !== "found") return <Segments segments={prSegments(work.pr)} />;
+  if (work.pr.status !== "found") return <Segments segments={prHeadline(work.pr)} />;
   const pr = work.pr.value;
   return (
     <>
@@ -80,7 +91,7 @@ function PullRequestSection({ work }: { work: Work }) {
         <strong>{`#${pr.number} ${sanitize(pr.title)}`}</strong>
       </text>
       <text fg={colors.muted}>{sanitize(pr.url)}</text>
-      <Segments segments={prSegments(work.pr)} />
+      <Segments segments={prStatus(work.pr)} />
       <Field label="Checks">{checksText(pr.checks)}</Field>
       <Field label="Review">
         {pr.reviewDecision ? pr.reviewDecision.toLowerCase().replace("_", " ") : "not required"}

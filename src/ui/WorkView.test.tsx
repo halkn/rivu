@@ -81,7 +81,8 @@ test("lists works with their summary and shows the selected overview", async () 
   expect(frame).toContain("1 staged · 0 unstaged · 1 untracked · 0 conflicted");
   expect(frame).toContain("abcdef0 add parser[2J");
   expect(frame).toContain("no PR");
-  expect(frame).toContain("PR #84 · Checks failed · Approved");
+  expect(frame).toContain("  #84 Add parser");
+  expect(frame).toContain("     ✗ CI 1/3 failed · ✓ Approved · Blocked");
   expect(frame).toContain("#84 Add parser");
   expect(frame).toContain("2 passed · 1 failed · 0 pending");
   expect(frame).toContain("j/k: select  r: reload  q: quit");
@@ -89,6 +90,6 @@ test("lists works with their summary and shows the selected overview", async () 
   const failed = setup
     .captureSpans()
     .lines.flatMap((line) => line.spans)
-    .find((span) => span.text.includes("Checks failed"));
+    .find((span) => span.text.includes("CI 1/3 failed"));
   expect(failed?.fg.equals(RGBA.fromHex(toneColors.danger))).toBe(true);
 });

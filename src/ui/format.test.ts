@@ -4,7 +4,8 @@ import {
   changedFileCount,
   headLabel,
   localSegments,
-  prSummary,
+  prHeadline,
+  prStatus,
   relativeTime,
   workSummary,
 } from "./format";
@@ -116,65 +117,93 @@ describe("localSegments", () => {
   });
 });
 
-describe("prSummary", () => {
+function found(value: PullRequest) {
+  return { status: "found", value } as const;
+}
+
+function text(segments: { text: string }[]): string {
+  return segments.map((segment) => segment.text).join(" · ");
+}
+
+describe("pull request lines", () => {
   const pr: PullRequest = {
-    number: 84,
-    title: "Add parser",
-    url: "https://github.com/o/r/pull/84",
+    number: 1,
+    title: "CI passes",
+    url: "https://github.com/o/r/pull/1",
     state: "OPEN",
     isDraft: false,
-    reviewDecision: "APPROVED",
+    reviewDecision: "REVIEW_REQUIRED",
     checks: { passed: 3, failed: 0, pending: 0 },
     mergeable: "MERGEABLE",
     mergeStateStatus: "CLEAN",
   };
 
-  test("open PR with passing CI and approval", () => {
-    expect(prSummary({ status: "found", value: pr })).toBe("PR #84 · CI passed · Approved");
+  test("headline shows the number, title and a draft or closed marker", () => {
+    expect(text(prHeadline(found(pr)))).toBe("#1 CI passes");
+    expect(prHeadline(found({ ...pr, isDraft: true })).at(-1)).toEqual({
+      text: "[draft]",
+      tone: "muted",
+    });
+    expect(text(prHeadline(found({ ...pr, state: "MERGED" })))).toBe("#1 CI passes · [merged]");
+    expect(text(prHeadline(found({ ...pr, state: "CLOSED" })))).toBe("#1 CI passes · [closed]");
   });
 
-  test("failing, running and missing checks", () => {
-    const failed = { ...pr, checks: { passed: 2, failed: 1, pending: 1 }, reviewDecision: null };
-    expect(prSummary({ status: "found", value: failed })).toBe("PR #84 · Checks failed");
-    const running = { ...pr, checks: { passed: 2, failed: 0, pending: 1 } };
-    expect(prSummary({ status: "found", value: running })).toBe("PR #84 · CI running · Approved");
-    const none = { ...pr, checks: { passed: 0, failed: 0, pending: 0 }, reviewDecision: null };
-    expect(prSummary({ status: "found", value: none })).toBe("PR #84");
+  test("status shows CI, review and merge state with tones", () => {
+    expect(prStatus(found(pr))).toEqual([
+      { text: "✓ CI 3/3", tone: "success" },
+      { text: "○ Review required", tone: "warning" },
+      { text: "Mergeable", tone: "success" },
+    ]);
   });
 
-  test("draft, conflicting and behind PRs", () => {
-    const pr2 = {
-      ...pr,
-      isDraft: true,
-      reviewDecision: "CHANGES_REQUESTED" as const,
-      mergeable: "CONFLICTING" as const,
-      mergeStateStatus: "DIRTY" as const,
-    };
-    expect(prSummary({ status: "found", value: pr2 })).toBe(
-      "PR #84 (draft) · CI passed · Changes requested · Conflicts",
+  test("failing and running checks", () => {
+    const failing = { ...pr, checks: { passed: 1, failed: 1, pending: 0 }, reviewDecision: null };
+    expect(text(prStatus(found({ ...failing, mergeStateStatus: "UNSTABLE" })))).toBe(
+      "✗ CI 1/2 failed · Mergeable",
     );
-    const behind = { ...pr, mergeStateStatus: "BEHIND" as const };
-    expect(prSummary({ status: "found", value: behind })).toBe(
-      "PR #84 · CI passed · Approved · Behind base",
-    );
+    const running = { ...pr, checks: { passed: 1, failed: 0, pending: 2 }, reviewDecision: null };
+    expect(prStatus(found(running))[0]).toEqual({ text: "○ CI 1/3", tone: "warning" });
   });
 
-  test("merged and closed PRs only show their state", () => {
-    expect(prSummary({ status: "found", value: { ...pr, state: "MERGED" } })).toBe(
-      "PR #84 · Merged",
-    );
-    expect(prSummary({ status: "found", value: { ...pr, state: "CLOSED" } })).toBe(
-      "PR #84 · Closed",
-    );
+  test("reviews", () => {
+    expect(prStatus(found({ ...pr, reviewDecision: "APPROVED" }))[1]).toEqual({
+      text: "✓ Approved",
+      tone: "success",
+    });
+    expect(prStatus(found({ ...pr, reviewDecision: "CHANGES_REQUESTED" }))[1]).toEqual({
+      text: "✗ Changes requested",
+      tone: "danger",
+    });
   });
 
-  test("states without a PR", () => {
-    expect(prSummary({ status: "none" })).toBe("no PR");
-    expect(prSummary({ status: "loading" })).toBe("PR loading…");
-    expect(prSummary({ status: "unavailable", reason: "gh is not installed" })).toBe(
+  function merge(overrides: Partial<PullRequest>) {
+    const quiet = { checks: { passed: 0, failed: 0, pending: 0 }, reviewDecision: null };
+    return prStatus(found({ ...pr, ...quiet, ...overrides }));
+  }
+
+  test("merge states", () => {
+    expect(merge({ mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" })).toEqual([
+      { text: "✗ Conflicts", tone: "danger" },
+    ]);
+    expect(merge({ mergeStateStatus: "BEHIND" })).toEqual([
+      { text: "Behind base", tone: "warning" },
+    ]);
+    expect(merge({ mergeStateStatus: "BLOCKED" })).toEqual([{ text: "Blocked", tone: "warning" }]);
+    expect(merge({ mergeable: "UNKNOWN", mergeStateStatus: "UNKNOWN" })).toEqual([]);
+  });
+
+  test("merged and closed PRs have no status line", () => {
+    expect(prStatus(found({ ...pr, state: "MERGED" }))).toEqual([]);
+  });
+
+  test("states without a PR are shown on the headline only", () => {
+    expect(text(prHeadline({ status: "none" }))).toBe("no PR");
+    expect(text(prHeadline({ status: "loading" }))).toBe("PR loading…");
+    expect(text(prHeadline({ status: "unavailable", reason: "gh is not installed" }))).toBe(
       "PR unavailable: gh is not installed",
     );
-    expect(prSummary({ status: "error", message: "HTTP 502" })).toBe("PR error: HTTP 502");
+    expect(text(prHeadline({ status: "error", message: "HTTP 502" }))).toBe("PR error: HTTP 502");
+    expect(prStatus({ status: "none" })).toEqual([]);
   });
 });
 

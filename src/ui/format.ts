@@ -58,12 +58,13 @@ export function workSummary(work: Work): string {
 }
 
 const REVIEW: Record<NonNullable<PullRequest["reviewDecision"]>, Segment> = {
-  APPROVED: { text: "Approved", tone: "success" },
-  CHANGES_REQUESTED: { text: "Changes requested", tone: "danger" },
-  REVIEW_REQUIRED: { text: "Review required", tone: "warning" },
+  APPROVED: { text: "✓ Approved", tone: "success" },
+  CHANGES_REQUESTED: { text: "✗ Changes requested", tone: "danger" },
+  REVIEW_REQUIRED: { text: "○ Review required", tone: "warning" },
 };
 
-export function prSegments(pr: PrState): Segment[] {
+/** First PR line: which PR it is, or why there is none. */
+export function prHeadline(pr: PrState): Segment[] {
   switch (pr.status) {
     case "loading":
       return [{ text: "PR loading…", tone: "muted" }];
@@ -77,25 +78,47 @@ export function prSegments(pr: PrState): Segment[] {
       break;
   }
   const value = pr.value;
-  const segments: Segment[] = [
-    { text: `PR #${value.number}${value.isDraft ? " (draft)" : ""}`, tone: "accent" },
+  const headline: Segment[] = [
+    { text: `#${value.number} ${sanitize(value.title)}`, tone: "accent" },
   ];
-  if (value.state === "MERGED") return [...segments, { text: "Merged", tone: "muted" }];
-  if (value.state === "CLOSED") return [...segments, { text: "Closed", tone: "muted" }];
-
-  const { passed, failed, pending } = value.checks;
-  if (failed > 0) segments.push({ text: "Checks failed", tone: "danger" });
-  else if (pending > 0) segments.push({ text: "CI running", tone: "warning" });
-  else if (passed > 0) segments.push({ text: "CI passed", tone: "success" });
-  if (value.reviewDecision) segments.push(REVIEW[value.reviewDecision]);
-  if (value.mergeable === "CONFLICTING") segments.push({ text: "Conflicts", tone: "danger" });
-  else if (value.mergeStateStatus === "BEHIND")
-    segments.push({ text: "Behind base", tone: "warning" });
-  return segments;
+  if (value.state === "MERGED") headline.push({ text: "[merged]", tone: "muted" });
+  else if (value.state === "CLOSED") headline.push({ text: "[closed]", tone: "muted" });
+  else if (value.isDraft) headline.push({ text: "[draft]", tone: "muted" });
+  return headline;
 }
 
-export function prSummary(pr: PrState): string {
-  return join(prSegments(pr));
+function checksSegment({ passed, failed, pending }: PullRequest["checks"]): Segment | undefined {
+  const total = passed + failed + pending;
+  if (total === 0) return undefined;
+  if (failed > 0) return { text: `✗ CI ${failed}/${total} failed`, tone: "danger" };
+  if (pending > 0) return { text: `○ CI ${passed}/${total}`, tone: "warning" };
+  return { text: `✓ CI ${passed}/${total}`, tone: "success" };
+}
+
+function mergeSegment(pr: PullRequest): Segment | undefined {
+  if (pr.mergeable === "CONFLICTING") return { text: "✗ Conflicts", tone: "danger" };
+  switch (pr.mergeStateStatus) {
+    case "BEHIND":
+      return { text: "Behind base", tone: "warning" };
+    case "BLOCKED":
+      return { text: "Blocked", tone: "warning" };
+    case "CLEAN":
+    case "HAS_HOOKS":
+    case "UNSTABLE":
+      return { text: "Mergeable", tone: "success" };
+    default:
+      return undefined;
+  }
+}
+
+/** Second PR line: CI, review and merge state of an open PR. */
+export function prStatus(pr: PrState): Segment[] {
+  if (pr.status !== "found" || pr.value.state !== "OPEN") return [];
+  return [
+    checksSegment(pr.value.checks),
+    pr.value.reviewDecision ? REVIEW[pr.value.reviewDecision] : undefined,
+    mergeSegment(pr.value),
+  ].filter((segment) => segment !== undefined);
 }
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [

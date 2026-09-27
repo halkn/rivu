@@ -93,6 +93,7 @@ Git 2.50.1 / gh 2.101.0 の出力形式で確認した。
 ## 表示
 
 - **外部から来た文字列は描画前に制御文字を除く**: コミットメッセージ・パス・PR のタイトルに含まれるエスケープシーケンスで、端末が操作されるのを防ぐため
-- **色は状態の意味で決める**: success（clean・CI passed・Approved）、warning（未コミットの変更・CI running・Review required・Behind base）、danger（conflict・Checks failed・Changes requested）、accent（未 push・ahead/behind・PR 番号）、muted（読込中・PR 無し・merge 済み）。一覧を流し見して、手を付けるべき Work が色で分かるようにするため
+- **一覧の PR は 2 行で出す**: 1 行目に番号とタイトル（draft / merged / closed の印）、2 行目に CI・review・merge の状態。何の PR がどの状態かを、一覧だけで読めるようにするため。merged / closed の PR は 2 行目を出さない
+- **色は状態の意味で決める**: success（clean・CI 成功・Approved・Mergeable）、warning（未コミットの変更・CI 実行中・Review required・Behind base・Blocked）、danger（conflict・CI 失敗・Changes requested）、accent（未 push・ahead/behind・PR のタイトル）、muted（読込中・PR 無し・draft / merged / closed の印）。一覧を流し見して、手を付けるべき Work が色で分かるようにするため
 - **再読込は `r` による手動のみ**: ファイル監視は v0.1 の範囲外
 - **キー**: `j` / `k`（`↓` / `↑`）で Work を選ぶ、`r` で再読込、`q` で終了
