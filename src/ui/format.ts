@@ -1,4 +1,4 @@
-import type { Checkout, LocalState, Work } from "../work";
+import type { Checkout, LocalState, PrState, PullRequest, ReviewState, Work } from "../work";
 import { sanitize } from "./sanitize";
 
 export function headLabel(checkout: Checkout): string {
@@ -20,22 +20,120 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-export function workSummary(work: Work): string {
-  if (work.checkout.prunable) return "prunable (directory is missing)";
-  if (work.local.status === "loading") return "loading…";
-  if (work.local.status === "error") return `error: ${sanitize(work.local.message)}`;
+export type Tone = "success" | "warning" | "danger" | "accent" | "muted";
+
+export type Segment = { text: string; tone: Tone };
+
+function join(segments: Segment[]): string {
+  return segments.map((segment) => segment.text).join(" · ");
+}
+
+export function localSegments(work: Work): Segment[] {
+  if (work.checkout.prunable) return [{ text: "prunable (directory is missing)", tone: "muted" }];
+  if (work.local.status === "loading") return [{ text: "loading…", tone: "muted" }];
+  if (work.local.status === "error") {
+    return [{ text: `error: ${sanitize(work.local.message)}`, tone: "danger" }];
+  }
 
   const local = work.local.value;
-  const parts: string[] = [];
+  const segments: Segment[] = [];
   const changed = changedFileCount(local);
-  if (changed > 0) parts.push(`${plural(changed, "file")} changed`);
-  if (local.conflicted.length > 0) parts.push(plural(local.conflicted.length, "conflict"));
-  if (work.checkout.head.kind === "branch" && local.upstream === null) {
-    parts.push("not pushed");
-  } else if (local.aheadBehind && (local.aheadBehind.ahead > 0 || local.aheadBehind.behind > 0)) {
-    parts.push(`↑${local.aheadBehind.ahead} ↓${local.aheadBehind.behind}`);
+  if (changed > 0) segments.push({ text: `${plural(changed, "file")} changed`, tone: "warning" });
+  if (local.conflicted.length > 0) {
+    segments.push({ text: plural(local.conflicted.length, "conflict"), tone: "danger" });
   }
-  return parts.length > 0 ? parts.join(" · ") : "clean";
+  if (work.checkout.head.kind === "branch" && local.upstream === null) {
+    segments.push({ text: "not pushed", tone: "accent" });
+  } else if (local.aheadBehind && (local.aheadBehind.ahead > 0 || local.aheadBehind.behind > 0)) {
+    segments.push({
+      text: `↑${local.aheadBehind.ahead} ↓${local.aheadBehind.behind}`,
+      tone: "accent",
+    });
+  }
+  return segments.length > 0 ? segments : [{ text: "clean", tone: "success" }];
+}
+
+export function workSummary(work: Work): string {
+  return join(localSegments(work));
+}
+
+const REVIEW: Record<NonNullable<PullRequest["reviewDecision"]>, Segment> = {
+  APPROVED: { text: "✓ Approved", tone: "success" },
+  CHANGES_REQUESTED: { text: "✗ Changes requested", tone: "danger" },
+  REVIEW_REQUIRED: { text: "○ Review required", tone: "warning" },
+};
+
+/** First PR line: which PR it is, or why there is none. */
+export function prHeadline(pr: PrState): Segment[] {
+  switch (pr.status) {
+    case "loading":
+      return [{ text: "PR loading…", tone: "muted" }];
+    case "none":
+      return [{ text: "no PR", tone: "muted" }];
+    case "unavailable":
+      return [{ text: `PR unavailable: ${sanitize(pr.reason)}`, tone: "muted" }];
+    case "error":
+      return [{ text: `PR error: ${sanitize(pr.message)}`, tone: "danger" }];
+    case "found":
+      break;
+  }
+  const value = pr.value;
+  const headline: Segment[] = [
+    { text: `#${value.number} ${sanitize(value.title)}`, tone: "accent" },
+  ];
+  if (value.state === "MERGED") headline.push({ text: "[merged]", tone: "muted" });
+  else if (value.state === "CLOSED") headline.push({ text: "[closed]", tone: "muted" });
+  else if (value.isDraft) headline.push({ text: "[draft]", tone: "muted" });
+  return headline;
+}
+
+function checksSegment({ passed, failed, pending }: PullRequest["checks"]): Segment | undefined {
+  const total = passed + failed + pending;
+  if (total === 0) return undefined;
+  if (failed > 0) return { text: `✗ CI ${failed}/${total} failed`, tone: "danger" };
+  if (pending > 0) return { text: `○ CI ${passed}/${total}`, tone: "warning" };
+  return { text: `✓ CI ${passed}/${total}`, tone: "success" };
+}
+
+function mergeSegment(pr: PullRequest): Segment | undefined {
+  if (pr.mergeable === "CONFLICTING") return { text: "✗ Conflicts", tone: "danger" };
+  switch (pr.mergeStateStatus) {
+    case "BEHIND":
+      return { text: "Behind base", tone: "warning" };
+    case "BLOCKED":
+      return { text: "Blocked", tone: "warning" };
+    case "CLEAN":
+    case "HAS_HOOKS":
+    case "UNSTABLE":
+      return { text: "Mergeable", tone: "success" };
+    default:
+      return undefined;
+  }
+}
+
+/** Second PR line: CI, review and merge state of an open PR. */
+export function prStatus(pr: PrState): Segment[] {
+  if (pr.status !== "found" || pr.value.state !== "OPEN") return [];
+  return [
+    checksSegment(pr.value.checks),
+    pr.value.reviewDecision ? REVIEW[pr.value.reviewDecision] : undefined,
+    mergeSegment(pr.value),
+  ].filter((segment) => segment !== undefined);
+}
+
+const REVIEW_VERBS: Record<ReviewState, string> = {
+  APPROVED: "approved",
+  CHANGES_REQUESTED: "requested changes",
+  COMMENTED: "commented",
+  DISMISSED: "dismissed",
+  PENDING: "pending",
+};
+
+export function reviewsText(reviews: PullRequest["latestReviews"]): string {
+  if (reviews.length === 0) return "no reviews";
+  return reviews
+    .map((review) => `${sanitize(review.author)} ${REVIEW_VERBS[review.state]}`)
+    .join(" · ");
 }
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [

@@ -37,6 +37,18 @@ describe("reduce", () => {
     ]);
   });
 
+  test("PR state starts loading and is attached to the matching checkout", () => {
+    expect(loaded.works.status === "loaded" && loaded.works.value[0]?.pr).toEqual({
+      status: "loading",
+    });
+    const state = reduce(loaded, { type: "prLoaded", path: "/wt/b", pr: { status: "none" } });
+    expect(state.works.status === "loaded" && state.works.value.map((w) => w.pr.status)).toEqual([
+      "loading",
+      "loading",
+      "none",
+    ]);
+  });
+
   test("local state is attached to the matching checkout", () => {
     const state = reduce(loaded, {
       type: "localLoaded",
