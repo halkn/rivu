@@ -29,6 +29,7 @@ type LocalState = {
   untracked: string[];
   conflicted: string[];
   latestCommit: { oid: string; subject: string; committedAt: Date } | null;
+  upstreamBranch: string | null; // upstream の remote 側の branch 名。upstream が無い・local の branch なら null
 };
 
 type Loadable<T> =
@@ -69,7 +70,7 @@ type PullRequest = {
 };
 ```
 
-- **対応付けに使う branch 名**: upstream があればその branch 名（`origin/` などの remote 名を除いたもの）、無ければ local の branch 名。local と remote で branch 名を変えている場合も、PR の head と一致させるため
+- **対応付けに使う branch 名**: まず local の branch 名、見つからなければ upstream が指す remote 側の branch 名で探す。upstream は push 先とは限らず（`origin/main` から作った branch や、local の branch を upstream にした branch）、upstream を優先すると無関係な PR を表示するため。remote 側の branch 名が repository の既定 branch なら探さない（既定 branch から作って未 push の branch が、既定 branch を head にした PR を拾わないように）
 - **複数の PR が一致する**: fork からの PR（`isCrossRepository`）は除き、OPEN を優先し、無ければ最も新しいものを採る。merge 済みの PR も表示するのは、その worktree を片付けてよいかの判断に使えるため
 - **一覧は新しい順に 100 件まで**: それより古い PR しか無い branch は「PR 無し」として扱う
 - **CI の集計**: CheckRun は完了前を pending、`FAILURE` / `TIMED_OUT` / `CANCELLED` / `ACTION_REQUIRED` / `STARTUP_FAILURE` を failed、`SUCCESS` を passed とし、`NEUTRAL` / `SKIPPED` / `STALE` は数えない。StatusContext は `SUCCESS` を passed、`FAILURE` / `ERROR` を failed、`PENDING` / `EXPECTED` を pending とする
@@ -85,7 +86,9 @@ Git 2.50.1 / gh 2.101.0 の出力形式で確認した。
 | Checkout の一覧                              | `git worktree list --porcelain -z`                                                                                                              |
 | branch・upstream・ahead/behind・変更ファイル | `git --no-optional-locks status --porcelain=v2 --branch -z`                                                                                     |
 | 最新のコミット                               | `git log -1 --format=%H%x00%s%x00%ct`                                                                                                           |
+| upstream の remote 側の branch 名            | `git for-each-ref --format=%(upstream:remotename)%00%(upstream:remoteref) refs/heads/<branch>`                                                  |
 | PR の一覧                                    | `gh pr list --state all --limit 100 --json number,headRefName,isCrossRepository,state`                                                          |
+| 既定 branch                                  | `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`                                                                              |
 | PR の詳細                                    | `gh pr view <number> --json number,title,url,state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus,updatedAt,latestReviews` |
 
 - **`-z` を使う**: パスを quote されずにそのまま受け取るため。改行を含むパスでも行の区切りと混同しない

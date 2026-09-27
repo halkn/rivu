@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Checkout } from "../work";
-import { findPull, parsePullDetail, parsePullList, pullBranchName } from "./pulls";
+import { findPull, parsePullDetail, parsePullList, branchCandidates } from "./pulls";
 
 const detail = await Bun.file(new URL("./fixtures/pr-view.json", import.meta.url)).text();
 
@@ -62,7 +62,7 @@ describe("findPull", () => {
   });
 });
 
-describe("pullBranchName", () => {
+describe("branchCandidates", () => {
   const checkout: Checkout = {
     path: "/wt",
     isMain: false,
@@ -71,17 +71,27 @@ describe("pullBranchName", () => {
     prunable: false,
   };
 
-  test("uses the upstream branch without the remote name", () => {
-    expect(pullBranchName(checkout, "origin/feat/remote-name")).toBe("feat/remote-name");
+  test("the local name first, then the remote branch it tracks", () => {
+    expect(branchCandidates(checkout, "feat/remote-name", "main")).toEqual([
+      "local-name",
+      "feat/remote-name",
+    ]);
   });
 
-  test("uses the local branch when there is no upstream", () => {
-    expect(pullBranchName(checkout, null)).toBe("local-name");
+  test("a remote branch with the same name is tried once", () => {
+    expect(branchCandidates(checkout, "local-name", "main")).toEqual(["local-name"]);
+  });
+
+  test("no upstream on a remote", () => {
+    expect(branchCandidates(checkout, null, "main")).toEqual(["local-name"]);
+  });
+
+  test("a branch created from the default branch does not borrow its PRs", () => {
+    expect(branchCandidates(checkout, "main", "main")).toEqual(["local-name"]);
   });
 
   test("a detached checkout has no branch to match", () => {
-    expect(
-      pullBranchName({ ...checkout, head: { kind: "detached", oid: "a".repeat(40) } }, null),
-    ).toBeNull();
+    const detached: Checkout = { ...checkout, head: { kind: "detached", oid: "a".repeat(40) } };
+    expect(branchCandidates(detached, null, "main")).toEqual([]);
   });
 });

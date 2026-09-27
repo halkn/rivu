@@ -52,11 +52,21 @@ export function findPull(pulls: PullListItem[], branch: string): PullListItem | 
   return candidates.find((pull) => pull.state === "OPEN") ?? candidates[0];
 }
 
-export function pullBranchName(checkout: Checkout, upstream: string | null): string | null {
-  if (checkout.head.kind !== "branch") return null;
-  if (upstream === null) return checkout.head.name;
-  const slash = upstream.indexOf("/");
-  return slash === -1 ? upstream : upstream.slice(slash + 1);
+/**
+ * Branch names to look up, in order: the local branch, then the remote branch it tracks.
+ * The default branch is skipped because a branch created from it tracks it until pushed.
+ */
+export function branchCandidates(
+  checkout: Checkout,
+  upstreamBranch: string | null,
+  defaultBranch: string | null,
+): string[] {
+  if (checkout.head.kind !== "branch") return [];
+  const candidates = [checkout.head.name];
+  if (upstreamBranch && upstreamBranch !== checkout.head.name && upstreamBranch !== defaultBranch) {
+    candidates.push(upstreamBranch);
+  }
+  return candidates;
 }
 
 const FAILED_CONCLUSIONS = new Set([

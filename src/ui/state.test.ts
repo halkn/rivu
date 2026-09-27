@@ -19,6 +19,7 @@ const local: LocalState = {
   unstaged: [],
   untracked: [],
   conflicted: [],
+  upstreamBranch: null,
   latestCommit: null,
 };
 

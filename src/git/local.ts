@@ -11,7 +11,7 @@ export async function listCheckouts(cwd: string): Promise<Checkout[]> {
 }
 
 export async function loadLocalState(checkout: Checkout): Promise<LocalState> {
-  const [status, latestCommit] = await Promise.all([
+  const [status, latestCommit, upstreamBranch] = await Promise.all([
     runGit(checkout.path, [
       "--no-optional-locks",
       "status",
@@ -20,8 +20,25 @@ export async function loadLocalState(checkout: Checkout): Promise<LocalState> {
       "-z",
     ]).then(parseStatus),
     UNBORN_OID.test(checkout.head.oid) ? null : loadLatestCommit(checkout.path),
+    checkout.head.kind === "branch" ? loadUpstreamBranch(checkout.path, checkout.head.name) : null,
   ]);
-  return { ...status, latestCommit };
+  return { ...status, latestCommit, upstreamBranch };
+}
+
+async function loadUpstreamBranch(cwd: string, branch: string): Promise<string | null> {
+  const out = await runGit(cwd, [
+    "for-each-ref",
+    "--format=%(upstream:remotename)%00%(upstream:remoteref)",
+    `refs/heads/${branch}`,
+  ]);
+  return parseUpstreamBranch(out);
+}
+
+// A local upstream is reported with "." as its remote name.
+export function parseUpstreamBranch(out: string): string | null {
+  const [remote, ref] = out.trimEnd().split("\0");
+  if (!remote || remote === "." || !ref?.startsWith("refs/heads/")) return null;
+  return ref.slice("refs/heads/".length);
 }
 
 async function loadLatestCommit(cwd: string): Promise<Commit | null> {

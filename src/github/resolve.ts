@@ -1,10 +1,10 @@
 import type { Checkout, PrState, PullRequest } from "../work";
 import { runGh } from "./gh";
 import {
+  branchCandidates,
   findPull,
   parsePullDetail,
   parsePullList,
-  pullBranchName,
   type PullListItem,
 } from "./pulls";
 
@@ -12,18 +12,27 @@ const LIST_FIELDS = "number,headRefName,isCrossRepository,state";
 const DETAIL_FIELDS =
   "number,title,url,state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus,updatedAt,latestReviews";
 
-export async function listPulls(cwd: string): Promise<PullListItem[]> {
-  const out = await runGh(cwd, [
-    "pr",
-    "list",
-    "--state",
-    "all",
-    "--limit",
-    "100",
-    "--json",
-    LIST_FIELDS,
+export type PullIndex = { pulls: PullListItem[]; defaultBranch: string | null };
+
+export async function listPulls(cwd: string): Promise<PullIndex> {
+  const [pulls, defaultBranch] = await Promise.all([
+    runGh(cwd, ["pr", "list", "--state", "all", "--limit", "100", "--json", LIST_FIELDS]).then(
+      parsePullList,
+    ),
+    // Only narrows branch matching, so PRs are still shown when this lookup fails.
+    runGh(cwd, [
+      "repo",
+      "view",
+      "--json",
+      "defaultBranchRef",
+      "--jq",
+      ".defaultBranchRef.name",
+    ]).then(
+      (out) => out.trim() || null,
+      () => null,
+    ),
   ]);
-  return parsePullList(out);
+  return { pulls, defaultBranch };
 }
 
 export async function fetchPull(cwd: string, number: number): Promise<PullRequest> {
@@ -36,18 +45,19 @@ function message(error: unknown): string {
 
 export async function resolvePr(
   checkout: Checkout,
-  upstream: string | null,
-  pulls: Promise<PullListItem[]>,
+  upstreamBranch: string | null,
+  index: Promise<PullIndex>,
   fetchDetail: (number: number) => Promise<PullRequest>,
 ): Promise<PrState> {
-  let list;
+  let resolved;
   try {
-    list = await pulls;
+    resolved = await index;
   } catch (error) {
     return { status: "unavailable", reason: message(error) };
   }
-  const branch = pullBranchName(checkout, upstream);
-  const match = branch === null ? undefined : findPull(list, branch);
+  const match = branchCandidates(checkout, upstreamBranch, resolved.defaultBranch)
+    .map((branch) => findPull(resolved.pulls, branch))
+    .find((pull) => pull !== undefined);
   if (!match) return { status: "none" };
   try {
     return { status: "found", value: await fetchDetail(match.number) };

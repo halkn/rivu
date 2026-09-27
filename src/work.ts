@@ -30,7 +30,11 @@ export type LocalStatus = {
 
 export type Commit = { oid: string; subject: string; committedAt: Date };
 
-export type LocalState = LocalStatus & { latestCommit: Commit | null };
+export type LocalState = LocalStatus & {
+  latestCommit: Commit | null;
+  /** Name of the upstream branch on its remote; null when there is no upstream or it is a local branch. */
+  upstreamBranch: string | null;
+};
 
 export type Loadable<T> =
   | { status: "loading" }
