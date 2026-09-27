@@ -58,6 +58,10 @@ describe("loadLocalState", () => {
     expect(state.upstreamBranch).toBeNull();
     expect(state.latestCommit?.subject).toBe("first commit");
     expect(state.latestCommit?.committedAt).toBeInstanceOf(Date);
+    expect(state.lineStats).toEqual([
+      { path: "a.txt", added: 1, deleted: 1 },
+      { path: "b.txt", added: 1, deleted: 1 },
+    ]);
   });
 
   test("a clean worktree has no changes", async () => {
@@ -99,6 +103,8 @@ describe("loadLocalState", () => {
     const empty = join(base, "empty");
     git(base, "init", "-q", "-b", "main", empty);
     const [checkout] = await listCheckouts(empty);
-    expect((await loadLocalState(checkout!)).latestCommit).toBeNull();
+    const state = await loadLocalState(checkout!);
+    expect(state.latestCommit).toBeNull();
+    expect(state.lineStats).toBeNull();
   });
 });
