@@ -18,6 +18,7 @@ describe("parsePullDetail", () => {
       mergeable: "MERGEABLE",
       mergeStateStatus: "BLOCKED",
       updatedAt: new Date("2026-09-26T06:51:47Z"),
+      body: "## Summary\r\n\r\nDocuments the `search` operators.\r\n\r\n- [x] docs\r\n",
       latestReviews: [
         { author: "BagToad", state: "COMMENTED" },
         { author: "copilot-pull-request-reviewer", state: "COMMENTED" },

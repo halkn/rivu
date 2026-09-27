@@ -63,6 +63,8 @@ export type PullRequest = {
   mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
   mergeStateStatus: "CLEAN" | "BEHIND" | "BLOCKED" | "DIRTY" | "UNSTABLE" | "HAS_HOOKS" | "UNKNOWN";
   updatedAt: Date;
+  /** Markdown as written on GitHub; empty when the PR has no description. */
+  body: string;
   latestReviews: { author: string; state: ReviewState }[];
 };
 

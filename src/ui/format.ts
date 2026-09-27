@@ -1,4 +1,12 @@
-import type { Checkout, LocalState, PrState, PullRequest, ReviewState, Work } from "../work";
+import type {
+  Checkout,
+  LineStat,
+  LocalState,
+  PrState,
+  PullRequest,
+  ReviewState,
+  Work,
+} from "../work";
 import { sanitize } from "./sanitize";
 
 export function headLabel(checkout: Checkout): string {
@@ -14,6 +22,52 @@ export function changedFileCount(local: LocalState): number {
     ...local.untracked,
     ...local.conflicted,
   ]).size;
+}
+
+export type ChangeRow = {
+  path: string;
+  /** Two-letter staged/unstaged status as in `git status --short`. */
+  status: string;
+  added: number | null;
+  deleted: number | null;
+  binary: boolean;
+};
+
+export function changeRows(local: LocalState): ChangeRow[] {
+  const status = new Map<string, [string, string]>();
+  const set = (path: string, side: 0 | 1, code: string) => {
+    const current = status.get(path) ?? [" ", " "];
+    current[side] = code;
+    status.set(path, current);
+  };
+  for (const change of local.staged) set(change.path, 0, change.code);
+  for (const change of local.unstaged) set(change.path, 1, change.code);
+  for (const path of local.untracked) status.set(path, ["?", "?"]);
+  for (const path of local.conflicted) status.set(path, ["U", "U"]);
+  const stats = new Map((local.lineStats ?? []).map((stat) => [stat.path, stat]));
+  return [...status.entries()]
+    .map(([path, [x, y]]) => {
+      const stat = x === "U" ? undefined : stats.get(path);
+      return {
+        path,
+        status: x + y,
+        added: stat?.added ?? null,
+        deleted: stat?.deleted ?? null,
+        binary: stat !== undefined && stat.added === null,
+      };
+    })
+    .toSorted((a, b) => a.path.localeCompare(b.path));
+}
+
+export function lineTotals(stats: LineStat[] | null): { added: number; deleted: number } | null {
+  if (stats === null) return null;
+  return stats.reduce(
+    (total, stat) => ({
+      added: total.added + (stat.added ?? 0),
+      deleted: total.deleted + (stat.deleted ?? 0),
+    }),
+    { added: 0, deleted: 0 },
+  );
 }
 
 function plural(count: number, noun: string): string {
@@ -39,6 +93,10 @@ export function localSegments(work: Work): Segment[] {
   const segments: Segment[] = [];
   const changed = changedFileCount(local);
   if (changed > 0) segments.push({ text: `${plural(changed, "file")} changed`, tone: "warning" });
+  const totals = lineTotals(local.lineStats);
+  if (totals && (totals.added > 0 || totals.deleted > 0)) {
+    segments.push({ text: `+${totals.added} −${totals.deleted}`, tone: "warning" });
+  }
   if (local.conflicted.length > 0) {
     segments.push({ text: plural(local.conflicted.length, "conflict"), tone: "danger" });
   }

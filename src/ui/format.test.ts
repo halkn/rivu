@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { Checkout, LocalState, PullRequest, Work } from "../work";
 import {
+  changeRows,
   changedFileCount,
+  lineTotals,
   headLabel,
   localSegments,
   prHeadline,
@@ -140,6 +142,7 @@ describe("pull request lines", () => {
     mergeable: "MERGEABLE",
     mergeStateStatus: "CLEAN",
     updatedAt: new Date("2026-09-26T09:00:00Z"),
+    body: "",
     latestReviews: [],
   };
 
@@ -232,5 +235,59 @@ describe("relativeTime", () => {
     expect(relativeTime(new Date("2026-09-26T11:59:30Z"), now)).toBe("30 seconds ago");
     expect(relativeTime(new Date("2026-09-26T09:00:00Z"), now)).toBe("3 hours ago");
     expect(relativeTime(new Date("2026-09-24T12:00:00Z"), now)).toBe("2 days ago");
+  });
+});
+
+describe("changes", () => {
+  const local: LocalState = {
+    ...clean,
+    staged: [
+      { path: "src/a.ts", code: "M" },
+      { path: "src/new.ts", code: "A" },
+    ],
+    unstaged: [
+      { path: "src/a.ts", code: "M" },
+      { path: "README.md", code: "D" },
+    ],
+    untracked: ["notes.txt"],
+    conflicted: ["src/conflict.ts"],
+    lineStats: [
+      { path: "src/a.ts", added: 3, deleted: 1 },
+      { path: "src/new.ts", added: 10, deleted: 0 },
+      { path: "README.md", added: 0, deleted: 5 },
+      { path: "logo.png", added: null, deleted: null },
+    ],
+  };
+
+  test("a binary change has no line counts", () => {
+    const rows = changeRows({ ...local, unstaged: [{ path: "logo.png", code: "M" }] });
+    expect(rows.find((row) => row.path === "logo.png")?.binary).toBe(true);
+    expect(rows.find((row) => row.path === "notes.txt")?.binary).toBe(false);
+  });
+
+  test("one row per path with its staged/unstaged status and line counts", () => {
+    expect(changeRows(local)).toEqual([
+      { path: "notes.txt", status: "??", added: null, deleted: null, binary: false },
+      { path: "README.md", status: " D", added: 0, deleted: 5, binary: false },
+      { path: "src/a.ts", status: "MM", added: 3, deleted: 1, binary: false },
+      { path: "src/conflict.ts", status: "UU", added: null, deleted: null, binary: false },
+      { path: "src/new.ts", status: "A ", added: 10, deleted: 0, binary: false },
+    ]);
+  });
+
+  test("line totals skip binary files", () => {
+    expect(lineTotals(local.lineStats)).toEqual({ added: 13, deleted: 6 });
+    expect(lineTotals(null)).toBeNull();
+  });
+
+  test("the work summary includes the line totals", () => {
+    expect(
+      workSummary(
+        work({
+          unstaged: [{ path: "a", code: "M" }],
+          lineStats: [{ path: "a", added: 12, deleted: 3 }],
+        }),
+      ),
+    ).toBe("1 file changed · +12 −3");
   });
 });
