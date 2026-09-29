@@ -1,4 +1,5 @@
 import type { Checkout, Commit, LocalState } from "../work";
+import { loadLineStats } from "./files";
 import { runGit } from "./run";
 import { parseStatus } from "./status";
 import { parseWorktreeList } from "./worktrees";
@@ -11,7 +12,8 @@ export async function listCheckouts(cwd: string): Promise<Checkout[]> {
 }
 
 export async function loadLocalState(checkout: Checkout): Promise<LocalState> {
-  const [status, latestCommit, upstreamBranch] = await Promise.all([
+  const unborn = UNBORN_OID.test(checkout.head.oid);
+  const [status, latestCommit, upstreamBranch, lineStats] = await Promise.all([
     runGit(checkout.path, [
       "--no-optional-locks",
       "status",
@@ -19,10 +21,11 @@ export async function loadLocalState(checkout: Checkout): Promise<LocalState> {
       "--branch",
       "-z",
     ]).then(parseStatus),
-    UNBORN_OID.test(checkout.head.oid) ? null : loadLatestCommit(checkout.path),
+    unborn ? null : loadLatestCommit(checkout.path),
     checkout.head.kind === "branch" ? loadUpstreamBranch(checkout.path, checkout.head.name) : null,
+    unborn ? null : loadLineStats(checkout.path),
   ]);
-  return { ...status, latestCommit, upstreamBranch };
+  return { ...status, latestCommit, upstreamBranch, lineStats };
 }
 
 async function loadUpstreamBranch(cwd: string, branch: string): Promise<string | null> {

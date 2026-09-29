@@ -1,9 +1,17 @@
-import { useKeyboard, useRenderer } from "@opentui/react";
+import type { ScrollBoxRenderable } from "@opentui/core";
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react";
 import { useCallback, useEffect, useReducer, useRef } from "react";
+import { loadPreview } from "../files/preview";
+import { listFiles } from "../git/files";
 import { listCheckouts, loadLocalState } from "../git/local";
 import { fetchPull, listPulls, resolvePr } from "../github/resolve";
+import { hunkArgs, openInHunk } from "../hunk";
 import type { Repository } from "../repository";
-import { initialState, reduce } from "./state";
+import type { Work } from "../work";
+import { selectedFile } from "./browse";
+import { changeRows } from "./format";
+import { keyCommand } from "./keys";
+import { initialState, reduce, selectedWork } from "./state";
 import { WorkView } from "./WorkView";
 
 function message(error: unknown): string {
@@ -56,12 +64,113 @@ export function App({ repository }: { repository: Repository }) {
     void load();
   }, [load]);
 
+  const { height } = useTerminalDimensions();
+  const scrollRef = useRef<ScrollBoxRenderable | null>(null);
+  const work = selectedWork(state);
+  const browse = state.browse;
+
+  // The Files and Changes tabs work on the selected checkout; start over when it changes.
+  useEffect(() => {
+    if (state.tab !== "overview" && work && browse?.path !== work.checkout.path) {
+      dispatch({ type: "browseStart", path: work.checkout.path });
+    }
+  }, [state.tab, work, browse?.path]);
+
+  const filesRequested = useRef<object | null>(null);
+  useEffect(() => {
+    if (state.tab !== "files" || !browse || browse.files.status !== "loading") return;
+    if (filesRequested.current === browse) return;
+    filesRequested.current = browse;
+    const path = browse.path;
+    listFiles(path).then(
+      (value) =>
+        dispatch({
+          type: "browse",
+          path,
+          action: { type: "filesLoaded", files: { status: "loaded", value } },
+        }),
+      (error: unknown) =>
+        dispatch({
+          type: "browse",
+          path,
+          action: { type: "filesLoaded", files: { status: "error", message: message(error) } },
+        }),
+    );
+  }, [state.tab, browse]);
+
+  const file = browse ? selectedFile(browse) : null;
+  useEffect(() => {
+    if (!browse || file === null || browse.preview?.file === file) return;
+    const path = browse.path;
+    loadPreview(path, file).then(
+      (value) =>
+        dispatch({
+          type: "browse",
+          path,
+          action: { type: "previewLoaded", file, value: { status: "loaded", value } },
+        }),
+      (error: unknown) =>
+        dispatch({
+          type: "browse",
+          path,
+          action: {
+            type: "previewLoaded",
+            file,
+            value: { status: "error", message: message(error) },
+          },
+        }),
+    );
+  }, [browse, file]);
+
+  const openHunk = (target: Work, path?: string) => {
+    const unborn = /^0+$/.test(target.checkout.head.oid);
+    const failure = openInHunk(renderer, target.checkout.path, hunkArgs({ unborn, path }));
+    dispatch({ type: "message", text: failure });
+    if (!failure) void load();
+  };
+
   useKeyboard((key) => {
-    if (key.name === "q") renderer.destroy();
-    else if (key.name === "r") void load();
-    else if (key.name === "j" || key.name === "down") dispatch({ type: "move", delta: 1 });
-    else if (key.name === "k" || key.name === "up") dispatch({ type: "move", delta: -1 });
+    const command = keyCommand(key, state);
+    if (!command) return;
+    if (state.message) dispatch({ type: "message", text: null });
+    const rows = work?.local.status === "loaded" ? changeRows(work.local.value) : [];
+    switch (command.kind) {
+      case "quit":
+        renderer.destroy();
+        return;
+      case "reload":
+        void load();
+        return;
+      case "hunk":
+        if (work) openHunk(work);
+        return;
+      case "hunkSelectedChange": {
+        const row = rows[browse?.changeIndex ?? 0];
+        if (work && row) openHunk(work, row.path);
+        return;
+      }
+      case "dispatch":
+        dispatch(command.action);
+        return;
+      case "browse":
+        if (browse) dispatch({ type: "browse", path: browse.path, action: command.action });
+        return;
+      case "changeMove":
+        if (browse) {
+          dispatch({
+            type: "browse",
+            path: browse.path,
+            action: { type: "changeMove", delta: command.delta, count: rows.length },
+          });
+        }
+        return;
+      case "scroll": {
+        const lines = "lines" in command ? command.lines : Math.round(command.pages * height);
+        scrollRef.current?.scrollBy(lines);
+        return;
+      }
+    }
   });
 
-  return <WorkView state={state} />;
+  return <WorkView state={state} height={height} scrollRef={scrollRef} />;
 }

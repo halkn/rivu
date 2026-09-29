@@ -45,18 +45,34 @@ It does not aim to replace:
 
 Issue / Work Item integration is not part of the initial scope.
 
-## Initial scope
+## Usage
 
-The first version should establish one complete workflow:
+```sh
+rivu [PATH]
+```
 
-1. Open a Git repository with `rivu .`
-1. Discover the main checkout and worktrees
-1. Show the Git state of each checkout
-1. Match a checkout branch with its pull request
-1. Show PR, CI, and review status
-1. Browse files in the selected checkout
-1. Preview source code and Markdown
-1. Hand detailed diffs off to Hunk
+The left pane lists the Works; the right pane shows the selected Work in three tabs:
+
+- **Overview**: branch, upstream, local changes, latest commit, and the pull request with its checks, reviews and description
+- **Files**: the checkout's files (without `.gitignore`d ones) with a source or Markdown preview
+- **Changes**: changed files with their status and line counts
+
+| Key                 | Action                                                            |
+| ------------------- | ----------------------------------------------------------------- |
+| `Tab`               | Move focus between the Works list and the tab                     |
+| `1` / `2` / `3`     | Show Overview / Files / Changes                                   |
+| `j` / `k`           | Move within the focused pane                                      |
+| `Enter` / `l`, `h`  | Open / close a directory (Files); open the file in Hunk (Changes) |
+| `Ctrl-d` / `Ctrl-u` | Scroll the preview or Overview                                    |
+| `d`                 | Open the selected Work's changes in Hunk                          |
+| `r`                 | Reload                                                            |
+| `q`                 | Quit                                                              |
+
+### Requirements
+
+- `git`
+- `gh`, authenticated, for pull request status. Without it, local state is still shown.
+- `hunk`, for detailed diffs
 
 ## Development
 

@@ -10,7 +10,7 @@ import {
 
 const LIST_FIELDS = "number,headRefName,isCrossRepository,state";
 const DETAIL_FIELDS =
-  "number,title,url,state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus,updatedAt,latestReviews";
+  "number,title,url,state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus,updatedAt,latestReviews,body";
 
 export type PullIndex = { pulls: PullListItem[]; defaultBranch: string | null };
 

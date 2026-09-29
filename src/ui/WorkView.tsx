@@ -1,179 +1,158 @@
-import type { PullRequest, Work } from "../work";
-import {
-  headLabel,
-  localSegments,
-  prHeadline,
-  prStatus,
-  relativeTime,
-  reviewsText,
-  type Segment,
-  workSummary,
-} from "./format";
+import type { ScrollBoxRenderable } from "@opentui/core";
+import type { RefObject } from "react";
+import type { Work } from "../work";
+import { ChangesTab } from "./ChangesTab";
+import { FilesTab } from "./FilesTab";
+import { changeRows, headLabel, localSegments, prHeadline, prStatus } from "./format";
+import { OverviewTab } from "./OverviewTab";
+import { Muted, Segments } from "./parts";
 import { sanitize } from "./sanitize";
-import { selectedWork, type State } from "./state";
+import { selectedWork, type State, type Tab } from "./state";
 import { colors, toneColors } from "./theme";
+import { visibleWindow } from "./window";
 
-function Segments({
-  segments,
-  indent = "",
-  separator = " · ",
+// Branch, local summary, PR headline, PR status and a blank line.
+const WORK_ROWS = 5;
+// Borders, the tab bar and the footer around a pane's content.
+const CHROME_ROWS = 4;
+
+function WorkList({
+  works,
+  selectedPath,
+  height,
 }: {
-  segments: Segment[];
-  indent?: string;
-  separator?: string;
+  works: Work[];
+  selectedPath: string | null;
+  height: number;
 }) {
-  if (segments.length === 0) return null;
+  const index = works.findIndex((work) => work.checkout.path === selectedPath);
+  return (
+    <box flexDirection="column">
+      {visibleWindow(works, index, Math.max(1, Math.floor(height / WORK_ROWS))).map((work) => (
+        <box
+          key={work.checkout.path}
+          flexDirection="column"
+          paddingLeft={1}
+          marginBottom={1}
+          backgroundColor={
+            work.checkout.path === selectedPath ? colors.selectedBackground : undefined
+          }
+        >
+          <text>
+            <strong>{headLabel(work.checkout)}</strong>
+            {work.checkout.isMain ? <span fg={colors.muted}>{" (main checkout)"}</span> : null}
+          </text>
+          <Segments segments={localSegments(work)} indent="  " />
+          <Segments segments={prHeadline(work.pr)} indent="  " separator=" " />
+          <Segments segments={prStatus(work.pr)} indent="     " />
+        </box>
+      ))}
+    </box>
+  );
+}
+
+const TAB_LABELS: [Tab, string][] = [
+  ["overview", "1 Overview"],
+  ["files", "2 Files"],
+  ["changes", "3 Changes"],
+];
+
+function TabBar({ tab }: { tab: Tab }) {
   return (
     <text>
-      {indent}
-      {segments.map((segment, index) => (
-        <span key={index}>
-          {index > 0 ? <span fg={colors.muted}>{separator}</span> : null}
-          <span fg={toneColors[segment.tone]}>{segment.text}</span>
+      {TAB_LABELS.map(([key, label]) => (
+        <span key={key} fg={key === tab ? toneColors.accent : colors.muted}>
+          {key === tab ? `[${label}]  ` : ` ${label}   `}
         </span>
       ))}
     </text>
   );
 }
 
-function WorkList({ works, selectedPath }: { works: Work[]; selectedPath: string | null }) {
-  return (
-    <box flexDirection="column">
-      {works.map((work) => {
-        const selected = work.checkout.path === selectedPath;
-        return (
-          <box
-            key={work.checkout.path}
-            flexDirection="column"
-            paddingLeft={1}
-            marginBottom={1}
-            backgroundColor={selected ? colors.selectedBackground : undefined}
-          >
-            <text>
-              <strong>{headLabel(work.checkout)}</strong>
-              {work.checkout.isMain ? <span fg={colors.muted}>{" (main checkout)"}</span> : null}
-            </text>
-            <Segments segments={localSegments(work)} indent="  " />
-            <Segments segments={prHeadline(work.pr)} indent="  " separator=" " />
-            <Segments segments={prStatus(work.pr)} indent="     " />
-          </box>
-        );
-      })}
-    </box>
-  );
+function Pane({
+  state,
+  work,
+  height,
+  scrollRef,
+}: {
+  state: State;
+  work: Work;
+  height: number;
+  scrollRef: RefObject<ScrollBoxRenderable | null>;
+}) {
+  const rows = work.local.status === "loaded" ? changeRows(work.local.value) : [];
+  switch (state.tab) {
+    case "overview":
+      return <OverviewTab work={work} scrollRef={scrollRef} />;
+    case "files":
+      return (
+        <FilesTab
+          browse={state.browse}
+          statuses={new Map(rows.map((row) => [row.path, row.status]))}
+          height={height}
+          scrollRef={scrollRef}
+        />
+      );
+    case "changes":
+      return <ChangesTab rows={rows} index={state.browse?.changeIndex ?? 0} height={height} />;
+  }
 }
 
-function Field({ label, children }: { label: string; children: string }) {
-  return (
-    <text>
-      <span fg={colors.muted}>{label.padEnd(10)}</span>
-      {children}
-    </text>
-  );
+const KEYS =
+  "Tab: focus  1/2/3: tab  j/k: move  Enter/l/h: open/close  C-d/C-u: scroll  d: hunk  r: reload  q: quit";
+
+function border(focused: boolean): string {
+  return focused ? toneColors.accent : colors.muted;
 }
 
-function checksText(checks: PullRequest["checks"]): string {
-  if (checks.passed + checks.failed + checks.pending === 0) return "no checks";
-  return `${checks.passed} passed · ${checks.failed} failed · ${checks.pending} pending`;
-}
-
-function mergeText(pr: PullRequest): string {
-  if (pr.state !== "OPEN") return pr.state === "MERGED" ? "merged" : "closed";
-  if (pr.mergeable === "CONFLICTING") return "conflicts with the base branch";
-  return pr.mergeStateStatus.toLowerCase().replace("_", " ");
-}
-
-function PullRequestSection({ work }: { work: Work }) {
-  if (work.pr.status !== "found") return <Segments segments={prHeadline(work.pr)} />;
-  const pr = work.pr.value;
-  return (
-    <>
-      <text>
-        <strong>{`#${pr.number} ${sanitize(pr.title)}`}</strong>
-      </text>
-      <text fg={colors.muted}>{sanitize(pr.url)}</text>
-      <Segments segments={prStatus(work.pr)} />
-      <Field label="Checks">{checksText(pr.checks)}</Field>
-      <Field label="Review">
-        {pr.reviewDecision ? pr.reviewDecision.toLowerCase().replace("_", " ") : "not required"}
-      </Field>
-      <Field label="Merge">{mergeText(pr)}</Field>
-      <Field label="Reviews">{reviewsText(pr.latestReviews)}</Field>
-      <Field label="Updated">{relativeTime(pr.updatedAt)}</Field>
-    </>
-  );
-}
-
-function Overview({ work }: { work: Work }) {
-  const { checkout, local } = work;
-  const flags = [
-    checkout.isMain && "main checkout",
-    checkout.locked && "locked",
-    checkout.prunable && "prunable",
-  ]
-    .filter(Boolean)
-    .join(", ");
-  return (
-    <box flexDirection="column" paddingLeft={1}>
-      <text>
-        <strong>{headLabel(checkout)}</strong>
-      </text>
-      <text fg={colors.muted}>{sanitize(checkout.path)}</text>
-      <text> </text>
-      {flags ? <Field label="Checkout">{flags}</Field> : null}
-      {local.status === "loaded" ? (
-        <>
-          <Field label="Upstream">
-            {local.value.upstream === null
-              ? "not pushed"
-              : `${sanitize(local.value.upstream)}${
-                  local.value.aheadBehind
-                    ? ` (↑${local.value.aheadBehind.ahead} ↓${local.value.aheadBehind.behind})`
-                    : ""
-                }`}
-          </Field>
-          <Field label="Changes">
-            {[
-              `${local.value.staged.length} staged`,
-              `${local.value.unstaged.length} unstaged`,
-              `${local.value.untracked.length} untracked`,
-              `${local.value.conflicted.length} conflicted`,
-            ].join(" · ")}
-          </Field>
-          <Field label="Commit">
-            {local.value.latestCommit
-              ? `${local.value.latestCommit.oid.slice(0, 7)} ${sanitize(local.value.latestCommit.subject)} (${relativeTime(local.value.latestCommit.committedAt)})`
-              : "no commits yet"}
-          </Field>
-        </>
-      ) : (
-        <text fg={colors.muted}>{workSummary(work)}</text>
-      )}
-      <text> </text>
-      <PullRequestSection work={work} />
-    </box>
-  );
-}
-
-export function WorkView({ state }: { state: State }) {
+export function WorkView({
+  state,
+  height,
+  scrollRef,
+}: {
+  state: State;
+  height: number;
+  scrollRef: RefObject<ScrollBoxRenderable | null>;
+}) {
   const selected = selectedWork(state);
+  const paneHeight = Math.max(1, height - CHROME_ROWS);
   return (
     <box flexDirection="column" width="100%" height="100%">
       <box flexDirection="row" flexGrow={1}>
-        <box title="Works" border width="40%">
-          {state.works.status === "loading" ? <text fg={colors.muted}>loading…</text> : null}
+        <box
+          title="Works"
+          border
+          borderColor={border(state.focus === "works")}
+          width="40%"
+          flexShrink={0}
+        >
+          {state.works.status === "loading" ? <Muted>loading…</Muted> : null}
           {state.works.status === "error" ? (
             <text fg={toneColors.danger}>{sanitize(state.works.message)}</text>
           ) : null}
           {state.works.status === "loaded" ? (
-            <WorkList works={state.works.value} selectedPath={state.selectedPath} />
+            <WorkList
+              works={state.works.value}
+              selectedPath={state.selectedPath}
+              height={paneHeight}
+            />
           ) : null}
         </box>
-        <box title="Overview" border flexGrow={1}>
-          {selected ? <Overview work={selected} /> : null}
+        <box
+          border
+          borderColor={border(state.focus === "pane")}
+          flexGrow={1}
+          flexDirection="column"
+        >
+          <TabBar tab={state.tab} />
+          {selected ? (
+            <Pane state={state} work={selected} height={paneHeight - 1} scrollRef={scrollRef} />
+          ) : null}
         </box>
       </box>
-      <text fg={colors.muted}>{"j/k: select  r: reload  q: quit"}</text>
+      <text fg={state.message ? toneColors.warning : colors.muted}>
+        {state.message ? sanitize(state.message) : KEYS}
+      </text>
     </box>
   );
 }

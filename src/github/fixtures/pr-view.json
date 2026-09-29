@@ -95,5 +95,6 @@
       "state": "COMMENTED",
       "submittedAt": "2026-09-25T16:40:56Z"
     }
-  ]
+  ],
+  "body": "## Summary\r\n\r\nDocuments the `search` operators.\r\n\r\n- [x] docs\r\n"
 }

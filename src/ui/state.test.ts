@@ -20,6 +20,7 @@ const local: LocalState = {
   untracked: [],
   conflicted: [],
   upstreamBranch: null,
+  lineStats: [],
   latestCommit: null,
 };
 
@@ -96,5 +97,45 @@ describe("reduce", () => {
     const state = reduce(initialState, { type: "checkoutsFailed", message: "boom" });
     expect(state.works).toEqual({ status: "error", message: "boom" });
     expect(selectedWork(state)).toBeUndefined();
+  });
+});
+
+describe("tabs, focus and browsing", () => {
+  test("focus toggles between the works list and the pane, and tabs switch", () => {
+    const focused = reduce(loaded, { type: "focusToggle" });
+    expect(focused.focus).toBe("pane");
+    expect(reduce(focused, { type: "focusToggle" }).focus).toBe("works");
+    expect(reduce(loaded, { type: "tab", tab: "files" }).tab).toBe("files");
+  });
+
+  test("browse actions apply only to the checkout they were started for", () => {
+    const started = reduce(loaded, { type: "browseStart", path: "/main" });
+    const files = { status: "loaded" as const, value: ["a.ts"] };
+    const applied = reduce(started, {
+      type: "browse",
+      path: "/main",
+      action: { type: "filesLoaded", files },
+    });
+    expect(applied.browse?.files).toEqual(files);
+    const stale = reduce(started, {
+      type: "browse",
+      path: "/wt/a",
+      action: { type: "filesLoaded", files },
+    });
+    expect(stale.browse?.files).toEqual({ status: "loading" });
+  });
+
+  test("selecting another work or reloading drops the browse state", () => {
+    const started = reduce(loaded, { type: "browseStart", path: "/main" });
+    expect(reduce(started, { type: "move", delta: 1 }).browse).toBeNull();
+    expect(
+      reduce(started, { type: "checkoutsLoaded", checkouts: [checkout("/main", "main")] }).browse,
+    ).toBeNull();
+  });
+
+  test("a message is shown until replaced", () => {
+    const state = reduce(loaded, { type: "message", text: "hunk is not installed" });
+    expect(state.message).toBe("hunk is not installed");
+    expect(reduce(state, { type: "message", text: null }).message).toBeNull();
   });
 });

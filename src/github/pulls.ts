@@ -119,6 +119,7 @@ export function parsePullDetail(json: string): PullRequest {
       "mergeStateStatus",
     ),
     updatedAt: date(pr.updatedAt, "updatedAt"),
+    body: typeof pr.body === "string" ? pr.body : "",
     latestReviews: parseReviews(pr.latestReviews),
   };
 }
